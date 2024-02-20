@@ -11,7 +11,7 @@ import (
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
-func functionsForModule(mod *state.Module, schemaReader state.SchemaReader) (map[string]schema.FunctionSignature, error) {
+func functionsForModule(mod *state.ModuleRecord, schemaReader state.SchemaReader) (map[string]schema.FunctionSignature, error) {
 	resolvedVersion := tfschema.ResolveVersion(mod.TerraformVersion, mod.Meta.CoreRequirements)
 	sm := tfschema.NewFunctionsMerger(mustFunctionsForVersion(resolvedVersion))
 	sm.SetSchemaReader(schemaReader)
