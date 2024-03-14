@@ -24,7 +24,7 @@ func modulePathContext(mod *state.ModuleRecord, stateReader StateReader) (*decod
 	if err != nil {
 		return nil, err
 	}
-	functions, err := functionsForModule(mod, schemaReader)
+	functions, err := functionsForModule(mod, stateReader)
 	if err != nil {
 		return nil, err
 	}
