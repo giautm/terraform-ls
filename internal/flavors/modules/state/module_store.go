@@ -5,129 +5,50 @@ package state
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
+	"time"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl-lang/reference"
-	"github.com/hashicorp/hcl/v2"
-	tfmod "github.com/hashicorp/terraform-schema/module"
-
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
-	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
-// ModuleRecord contains all information about module files
-// we have for a certain path
-type ModuleRecord struct {
-	path string
+type ModuleStore struct {
+	db        *memdb.MemDB
+	Changes   *ModuleChangeStore
+	tableName string
+	logger    *log.Logger
 
-	// ProviderSchemaState tracks if we tried loading all provider schemas
-	// that this module is using via Terraform CLI
-	ProviderSchemaState op.OpState
-	ProviderSchemaErr   error
+	// TimeProvider provides current time (for mocking time.Now in tests)
+	TimeProvider func() time.Time
 
-	// PreloadEmbeddedSchemaState tracks if we tried loading all provider
-	// schemas from our embedded schema data
-	PreloadEmbeddedSchemaState op.OpState
-
-	RefTargets      reference.Targets
-	RefTargetsErr   error
-	RefTargetsState op.OpState
-
-	RefOrigins      reference.Origins
-	RefOriginsErr   error
-	RefOriginsState op.OpState
-
-	ParsedModuleFiles ast.ModFiles
-	ModuleParsingErr  error
-
-	Meta      ModuleMetadata
-	MetaErr   error
-	MetaState op.OpState
-
-	ModuleDiagnostics      ast.SourceModDiags
-	ModuleDiagnosticsState ast.DiagnosticSourceState
+	// MaxModuleNesting represents how many nesting levels we'd attempt
+	// to parse provider requirements before returning error.
+	MaxModuleNesting int
 }
 
-func (m *ModuleRecord) Copy() *ModuleRecord {
-	if m == nil {
-		return nil
+func moduleByPath(txn *memdb.Txn, path string) (*ModuleRecord, error) {
+	obj, err := txn.First(moduleTableName, "id", path)
+	if err != nil {
+		return nil, err
 	}
-	newMod := &ModuleRecord{
-		path: m.path,
-
-		ProviderSchemaErr:   m.ProviderSchemaErr,
-		ProviderSchemaState: m.ProviderSchemaState,
-
-		PreloadEmbeddedSchemaState: m.PreloadEmbeddedSchemaState,
-
-		RefTargets:      m.RefTargets.Copy(),
-		RefTargetsErr:   m.RefTargetsErr,
-		RefTargetsState: m.RefTargetsState,
-
-		RefOrigins:      m.RefOrigins.Copy(),
-		RefOriginsErr:   m.RefOriginsErr,
-		RefOriginsState: m.RefOriginsState,
-
-		ModuleParsingErr: m.ModuleParsingErr,
-
-		Meta:      m.Meta.Copy(),
-		MetaErr:   m.MetaErr,
-		MetaState: m.MetaState,
-
-		ModuleDiagnosticsState: m.ModuleDiagnosticsState.Copy(),
-	}
-
-	if m.ParsedModuleFiles != nil {
-		newMod.ParsedModuleFiles = make(ast.ModFiles, len(m.ParsedModuleFiles))
-		for name, f := range m.ParsedModuleFiles {
-			// hcl.File is practically immutable once it comes out of parser
-			newMod.ParsedModuleFiles[name] = f
+	if obj == nil {
+		return nil, &RecordNotFoundError{
+			Source: path,
 		}
 	}
-
-	if m.ModuleDiagnostics != nil {
-		newMod.ModuleDiagnostics = make(ast.SourceModDiags, len(m.ModuleDiagnostics))
-
-		for source, modDiags := range m.ModuleDiagnostics {
-			newMod.ModuleDiagnostics[source] = make(ast.ModDiags, len(modDiags))
-
-			for name, diags := range modDiags {
-				newMod.ModuleDiagnostics[source][name] = make(hcl.Diagnostics, len(diags))
-				copy(newMod.ModuleDiagnostics[source][name], diags)
-			}
-		}
-	}
-
-	return newMod
+	return obj.(*ModuleRecord), nil
 }
 
-func (m *ModuleRecord) Path() string {
-	return m.path
-}
-
-func newModule(modPath string) *ModuleRecord {
-	return &ModuleRecord{
-		path:                       modPath,
-		ProviderSchemaState:        op.OpStateUnknown,
-		PreloadEmbeddedSchemaState: op.OpStateUnknown,
-		RefTargetsState:            op.OpStateUnknown,
-		MetaState:                  op.OpStateUnknown,
-		ModuleDiagnosticsState: ast.DiagnosticSourceState{
-			ast.HCLParsingSource:          op.OpStateUnknown,
-			ast.SchemaValidationSource:    op.OpStateUnknown,
-			ast.ReferenceValidationSource: op.OpStateUnknown,
-			ast.TerraformValidateSource:   op.OpStateUnknown,
-		},
+func moduleCopyByPath(txn *memdb.Txn, path string) (*ModuleRecord, error) {
+	mod, err := moduleByPath(txn, path)
+	if err != nil {
+		return nil, err
 	}
-}
 
-// NewModuleTest is a test helper to create a new Module object
-func NewModuleTest(path string) *ModuleRecord {
-	return &ModuleRecord{
-		path: path,
-	}
+	return mod.Copy(), nil
 }
 
 func (s *ModuleStore) Add(modPath string) error {
@@ -363,28 +284,6 @@ func (s *ModuleStore) LocalModuleMeta(modPath string) (*tfmod.Meta, error) {
 		Outputs:              mod.Meta.Outputs,
 		ModuleCalls:          mod.Meta.ModuleCalls,
 	}, nil
-}
-
-func moduleByPath(txn *memdb.Txn, path string) (*ModuleRecord, error) {
-	obj, err := txn.First(moduleTableName, "id", path)
-	if err != nil {
-		return nil, err
-	}
-	if obj == nil {
-		return nil, &RecordNotFoundError{
-			Source: path,
-		}
-	}
-	return obj.(*ModuleRecord), nil
-}
-
-func moduleCopyByPath(txn *memdb.Txn, path string) (*ModuleRecord, error) {
-	mod, err := moduleByPath(txn, path)
-	if err != nil {
-		return nil, err
-	}
-
-	return mod.Copy(), nil
 }
 
 func (s *ModuleStore) List() ([]*ModuleRecord, error) {

@@ -16,6 +16,7 @@ func (svc *service) WorkspaceSymbol(ctx context.Context, params lsp.WorkspaceSym
 		return nil, err
 	}
 
+	// TODO? maybe kick off indexing of the whole workspace here
 	symbols, err := svc.decoder.Symbols(ctx, params.Query)
 	if err != nil {
 		return nil, err

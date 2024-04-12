@@ -9,5 +9,7 @@ project {
   header_ignore = [
     "**/testdata/**",
     ".github/ISSUE_TEMPLATE/**",
+    "internal/schemas/gen-workspace/**",
+    "internal/schemas/tf-plugin-cache/**",
   ]
 }
