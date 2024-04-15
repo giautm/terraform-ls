@@ -1,0 +1,67 @@
+package state
+
+import (
+	"time"
+
+	"github.com/hashicorp/go-memdb"
+)
+
+const (
+	moduleTableName        = "module"
+	moduleIdsTableName     = "module_ids"
+	moduleChangesTableName = "module_changes"
+)
+
+var dbSchema = &memdb.DBSchema{
+	Tables: map[string]*memdb.TableSchema{
+		moduleTableName: {
+			Name: moduleTableName,
+			Indexes: map[string]*memdb.IndexSchema{
+				"id": {
+					Name:    "id",
+					Unique:  true,
+					Indexer: &memdb.StringFieldIndex{Field: "path"},
+				},
+			},
+		},
+		moduleIdsTableName: {
+			Name: moduleIdsTableName,
+			Indexes: map[string]*memdb.IndexSchema{
+				"id": {
+					Name:    "id",
+					Unique:  true,
+					Indexer: &memdb.StringFieldIndex{Field: "Path"},
+				},
+			},
+		},
+		moduleChangesTableName: {
+			Name: moduleChangesTableName,
+			Indexes: map[string]*memdb.IndexSchema{
+				"id": {
+					Name:    "id",
+					Unique:  true,
+					Indexer: &DirHandleFieldIndexer{Field: "DirHandle"},
+				},
+				"time": {
+					Name:    "time",
+					Indexer: &TimeFieldIndex{Field: "FirstChangeTime"},
+				},
+			},
+		},
+	},
+}
+
+func NewStateStore() (*ModuleStore, error) {
+	db, err := memdb.NewMemDB(dbSchema)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ModuleStore{
+		db:               db,
+		tableName:        moduleTableName,
+		logger:           defaultLogger,
+		TimeProvider:     time.Now,
+		MaxModuleNesting: 50,
+	}, nil
+}

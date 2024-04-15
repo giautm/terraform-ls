@@ -23,11 +23,7 @@ import (
 const (
 	documentsTableName        = "documents"
 	jobsTableName             = "jobs"
-	moduleTableName           = "module"
-	variableTableName         = "variable"
 	rootTableName             = "root"
-	moduleIdsTableName        = "module_ids"
-	moduleChangesTableName    = "module_changes"
 	providerSchemaTableName   = "provider_schema"
 	providerIdsTableName      = "provider_ids"
 	walkerPathsTableName      = "walker_paths"
@@ -124,26 +120,6 @@ var dbSchema = &memdb.DBSchema{
 				},
 			},
 		},
-		moduleTableName: {
-			Name: moduleTableName,
-			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
-					Unique:  true,
-					Indexer: &memdb.StringFieldIndex{Field: "path"},
-				},
-			},
-		},
-		variableTableName: {
-			Name: variableTableName,
-			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
-					Unique:  true,
-					Indexer: &memdb.StringFieldIndex{Field: "path"},
-				},
-			},
-		},
 		rootTableName: {
 			Name: rootTableName,
 			Indexes: map[string]*memdb.IndexSchema{
@@ -201,30 +177,6 @@ var dbSchema = &memdb.DBSchema{
 				},
 			},
 		},
-		moduleIdsTableName: {
-			Name: moduleIdsTableName,
-			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
-					Unique:  true,
-					Indexer: &memdb.StringFieldIndex{Field: "Path"},
-				},
-			},
-		},
-		moduleChangesTableName: {
-			Name: moduleChangesTableName,
-			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
-					Unique:  true,
-					Indexer: &DirHandleFieldIndexer{Field: "DirHandle"},
-				},
-				"time": {
-					Name:    "time",
-					Indexer: &TimeFieldIndex{Field: "FirstChangeTime"},
-				},
-			},
-		},
 		walkerPathsTableName: {
 			Name: walkerPathsTableName,
 			Indexes: map[string]*memdb.IndexSchema{
@@ -260,8 +212,6 @@ var dbSchema = &memdb.DBSchema{
 type StateStore struct {
 	DocumentStore     *DocumentStore
 	JobStore          *JobStore
-	Modules           *ModuleStore
-	Variables         *VariableStore
 	Roots             *RootStore
 	ProviderSchemas   *ProviderSchemaStore
 	WalkerPaths       *WalkerPathStore
@@ -269,26 +219,6 @@ type StateStore struct {
 	TerraformVersions *TerraformVersionStore
 
 	db *memdb.MemDB
-}
-
-type ModuleStore struct {
-	db        *memdb.MemDB
-	Changes   *ModuleChangeStore
-	tableName string
-	logger    *log.Logger
-
-	// TimeProvider provides current time (for mocking time.Now in tests)
-	TimeProvider func() time.Time
-
-	// MaxModuleNesting represents how many nesting levels we'd attempt
-	// to parse provider requirements before returning error.
-	MaxModuleNesting int
-}
-
-type VariableStore struct {
-	db        *memdb.MemDB
-	tableName string
-	logger    *log.Logger
 }
 
 type RootStore struct {
@@ -301,37 +231,6 @@ type TerraformVersionStore struct {
 	db        *memdb.MemDB
 	tableName string
 	logger    *log.Logger
-}
-
-type ModuleChangeStore struct {
-	db *memdb.MemDB
-}
-
-type ModuleReader interface {
-	CallersOfModule(modPath string) ([]*ModuleRecord, error)
-	ModuleByPath(modPath string) (*ModuleRecord, error)
-	List() ([]*ModuleRecord, error)
-}
-
-type ModuleCallReader interface {
-	ModuleCalls(modPath string) (tfmod.ModuleCalls, error)
-	LocalModuleMeta(modPath string) (*tfmod.Meta, error)
-	RegistryModuleMeta(addr tfaddr.Module, cons version.Constraints) (*registry.ModuleData, error)
-}
-
-type StateReader interface {
-	DeclaredModuleCalls(modPath string) (map[string]tfmod.DeclaredModuleCall, error)
-	InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error)
-	LocalModuleMeta(modPath string) (*tfmod.Meta, error)
-	RegistryModuleMeta(addr tfaddr.Module, cons version.Constraints) (*registry.ModuleData, error)
-	ProviderSchema(modPath string, addr tfaddr.Provider, vc version.Constraints) (*tfschema.ProviderSchema, error)
-	InstalledTerraformVersion(modPath string) *version.Version
-
-	ModuleRecordByPath(modPath string) (*ModuleRecord, error)
-	VariableRecordByPath(modPath string) (*VariableRecord, error)
-
-	ListModuleRecords() ([]*ModuleRecord, error)
-	ListVariableRecords() ([]*VariableRecord, error)
 }
 
 type ProviderSchemaStore struct {
@@ -370,18 +269,6 @@ func NewStateStore() (*StateStore, error) {
 			nextJobHighPrioMu: &sync.Mutex{},
 			nextJobLowPrioMu:  &sync.Mutex{},
 		},
-		Modules: &ModuleStore{
-			db:               db,
-			tableName:        moduleTableName,
-			logger:           defaultLogger,
-			TimeProvider:     time.Now,
-			MaxModuleNesting: 50,
-		},
-		Variables: &VariableStore{
-			db:        db,
-			tableName: variableTableName,
-			logger:    defaultLogger,
-		},
 		Roots: &RootStore{
 			db:        db,
 			tableName: rootTableName,
@@ -415,8 +302,6 @@ func NewStateStore() (*StateStore, error) {
 func (s *StateStore) SetLogger(logger *log.Logger) {
 	s.DocumentStore.logger = logger
 	s.JobStore.logger = logger
-	s.Modules.logger = logger
-	s.Variables.logger = logger
 	s.Roots.logger = logger
 	s.ProviderSchemas.logger = logger
 	s.WalkerPaths.logger = logger
@@ -427,17 +312,11 @@ func (s *StateStore) SetLogger(logger *log.Logger) {
 var defaultLogger = log.New(ioutil.Discard, "", 0)
 
 type RecordStores struct {
-	Modules           *ModuleStore
 	ProviderSchemas   *ProviderSchemaStore
 	RegistryModules   *RegistryModuleStore
 	Roots             *RootStore
 	TerraformVersions *TerraformVersionStore
-	Variables         *VariableStore
 }
-
-var (
-	_ StateReader = &RecordStores{}
-)
 
 type RecordStore interface {
 	Path() string
