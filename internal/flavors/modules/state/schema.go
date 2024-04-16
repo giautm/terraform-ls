@@ -1,6 +1,10 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package state
 
 import (
+	"log"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
@@ -51,7 +55,7 @@ var dbSchema = &memdb.DBSchema{
 	},
 }
 
-func NewStateStore() (*ModuleStore, error) {
+func NewModuleStore(logger *log.Logger) (*ModuleStore, error) {
 	db, err := memdb.NewMemDB(dbSchema)
 	if err != nil {
 		return nil, err
@@ -60,7 +64,7 @@ func NewStateStore() (*ModuleStore, error) {
 	return &ModuleStore{
 		db:               db,
 		tableName:        moduleTableName,
-		logger:           defaultLogger,
+		logger:           logger,
 		TimeProvider:     time.Now,
 		MaxModuleNesting: 50,
 	}, nil

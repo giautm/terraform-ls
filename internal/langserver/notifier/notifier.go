@@ -28,11 +28,11 @@ type ModuleStore interface {
 
 type Hook func(ctx context.Context, changes state.ModuleChanges) error
 
-func NewNotifier(modStore ModuleStore, hooks []Hook) *Notifier {
+func NewNotifier(hooks []Hook) *Notifier {
 	return &Notifier{
-		modStore: modStore,
-		hooks:    hooks,
-		logger:   defaultLogger,
+		// modStore: modStore,
+		hooks:  hooks,
+		logger: defaultLogger,
 	}
 }
 

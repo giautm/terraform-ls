@@ -7,10 +7,13 @@ import (
 	"context"
 	"path/filepath"
 
+	lsctx "github.com/hashicorp/terraform-ls/internal/context"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/flavors/variables/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 	"github.com/hashicorp/terraform-ls/internal/terraform/parser"
 	"github.com/hashicorp/terraform-ls/internal/uri"
 )

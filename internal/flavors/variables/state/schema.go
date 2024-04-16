@@ -1,6 +1,13 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package state
 
-import "github.com/hashicorp/go-memdb"
+import (
+	"log"
+
+	"github.com/hashicorp/go-memdb"
+)
 
 const (
 	variableTableName = "variable"
@@ -21,7 +28,7 @@ var dbSchema = &memdb.DBSchema{
 	},
 }
 
-func NewStateStore() (*VariableStore, error) {
+func NewVariableStore(logger *log.Logger) (*VariableStore, error) {
 	db, err := memdb.NewMemDB(dbSchema)
 	if err != nil {
 		return nil, err
@@ -30,6 +37,6 @@ func NewStateStore() (*VariableStore, error) {
 	return &VariableStore{
 		db:        db,
 		tableName: variableTableName,
-		logger:    defaultLogger,
+		logger:    logger,
 	}, nil
 }

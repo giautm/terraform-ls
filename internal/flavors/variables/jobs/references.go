@@ -8,9 +8,13 @@ import (
 
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
+	idecoder "github.com/hashicorp/terraform-ls/internal/decoder"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/variables/decoder"
+	"github.com/hashicorp/terraform-ls/internal/flavors/variables/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
+	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
 // DecodeVarsReferences collects reference origins within
@@ -20,7 +24,7 @@ import (
 //
 // This is useful in hovering over those variable names,
 // go-to-definition and go-to-references.
-func DecodeVarsReferences(ctx context.Context, varStore *state.VariableStore, stateReader state.StateReader, modPath string) error {
+func DecodeVarsReferences(ctx context.Context, varStore *state.VariableStore, modPath string) error {
 	mod, err := varStore.VariableRecordByPath(modPath)
 	if err != nil {
 		return err
@@ -38,8 +42,8 @@ func DecodeVarsReferences(ctx context.Context, varStore *state.VariableStore, st
 		return err
 	}
 
-	d := decoder.NewDecoder(&idecoder.PathReader{
-		StateReader: stateReader,
+	d := decoder.NewDecoder(&fdecoder.PathReader{
+		StateReader: varStore,
 	})
 	d.SetContext(idecoder.DecoderContext(ctx))
 

@@ -7,16 +7,19 @@ import (
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/reference"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	"github.com/hashicorp/terraform-ls/internal/flavors/variables/state"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	tfmod "github.com/hashicorp/terraform-schema/module"
+	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
 func varsPathContext(mod *state.VariableRecord, stateReader StateReader) (*decoder.PathContext, error) {
 	variables := make(map[string]tfmod.Variable)
-	meta, err := stateReader.LocalModuleMeta(mod.Path())
-	if err == nil {
-		variables = meta.Variables
-	}
+	// TODO: GET SCHEMA FROM MODULE
+	// meta, err := stateReader.LocalModuleMeta(mod.Path())
+	// if err == nil {
+	// 	variables = meta.Variables
+	// }
 
 	schema, err := tfschema.SchemaForVariables(variables, mod.Path())
 	if err != nil {
@@ -46,5 +49,6 @@ func varsPathContext(mod *state.VariableRecord, stateReader StateReader) (*decod
 	for name, f := range mod.ParsedVarsFiles {
 		pathCtx.Files[name.String()] = f
 	}
+
 	return pathCtx, nil
 }

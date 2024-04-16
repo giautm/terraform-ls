@@ -19,6 +19,8 @@ import (
 	idecoder "github.com/hashicorp/terraform-ls/internal/decoder"
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/filesystem"
+	fmodules "github.com/hashicorp/terraform-ls/internal/flavors/modules"
+	fvariables "github.com/hashicorp/terraform-ls/internal/flavors/variables"
 	"github.com/hashicorp/terraform-ls/internal/indexer"
 	"github.com/hashicorp/terraform-ls/internal/job"
 	"github.com/hashicorp/terraform-ls/internal/langserver/diagnostics"
@@ -40,6 +42,11 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 )
+
+type Flavors struct {
+	Modules   *fmodules.ModulesFlavor
+	Variables *fvariables.VariablesFlavor
+}
 
 type service struct {
 	logger *log.Logger
@@ -69,6 +76,8 @@ type service struct {
 	notifier       *notifier.Notifier
 	indexer        *indexer.Indexer
 	registryClient registry.Client
+
+	flavors *Flavors
 
 	walkerCollector    *walker.WalkerCollector
 	additionalHandlers map[string]rpch.Func
@@ -507,11 +516,11 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 		}
 	}
 
-	svc.notifier = notifier.NewNotifier(svc.stateStore.Modules, moduleHooks)
+	svc.notifier = notifier.NewNotifier(moduleHooks)
 	svc.notifier.SetLogger(svc.logger)
 	svc.notifier.Start(svc.sessCtx)
 
-	svc.recordStores = state.NewRecordStores(svc.stateStore.Modules, svc.stateStore.Roots, svc.stateStore.Variables,
+	svc.recordStores = state.NewRecordStores(svc.stateStore.Roots,
 		svc.stateStore.RegistryModules, svc.stateStore.ProviderSchemas, svc.stateStore.TerraformVersions)
 
 	svc.fs = filesystem.NewFilesystem(svc.stateStore.DocumentStore)
@@ -537,6 +546,19 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.openDirWalker = walker.NewWalker(svc.fs, opendPa, svc.recordStores, svc.indexer.WalkedModule)
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.openDirWalker.SetLogger(svc.logger)
+
+	moduleFlavor, err := fmodules.NewModulesFlavor(svc.logger)
+	if err != nil {
+		return err
+	}
+	variablesFlavor, err := fvariables.NewVariablesFlavor(svc.logger, svc.stateStore.JobStore, svc.fs)
+	if err != nil {
+		return err
+	}
+	svc.flavors = &Flavors{
+		Modules:   moduleFlavor,
+		Variables: variablesFlavor,
+	}
 
 	return nil
 }

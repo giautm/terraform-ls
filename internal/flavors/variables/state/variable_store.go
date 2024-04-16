@@ -8,7 +8,9 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/hcl-lang/reference"
+	globalState "github.com/hashicorp/terraform-ls/internal/state"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
 type VariableStore struct {
@@ -37,7 +39,7 @@ func (s *VariableStore) add(txn *memdb.Txn, modPath string) error {
 		return err
 	}
 	if obj != nil {
-		return &AlreadyExistsError{
+		return &globalState.AlreadyExistsError{
 			Idx: modPath,
 		}
 	}
@@ -63,7 +65,7 @@ func (s *VariableStore) AddIfNotExists(path string) error {
 
 	_, err := variableRecordByPath(txn, path)
 	if err != nil {
-		if IsRecordNotFound(err) {
+		if globalState.IsRecordNotFound(err) {
 			err := s.add(txn, path)
 			if err != nil {
 				return err
@@ -153,7 +155,7 @@ func variableRecordByPath(txn *memdb.Txn, path string) (*VariableRecord, error) 
 		return nil, err
 	}
 	if obj == nil {
-		return nil, &RecordNotFoundError{
+		return nil, &globalState.RecordNotFoundError{
 			Source: path,
 		}
 	}

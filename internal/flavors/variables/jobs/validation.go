@@ -10,10 +10,15 @@ import (
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/hcl/v2"
+	lsctx "github.com/hashicorp/terraform-ls/internal/context"
+	idecoder "github.com/hashicorp/terraform-ls/internal/decoder"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/variables/decoder"
+	"github.com/hashicorp/terraform-ls/internal/flavors/variables/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
 // SchemaVariablesValidation does schema-based validation
@@ -22,7 +27,7 @@ import (
 //
 // It relies on previously parsed AST (via [ParseVariables])
 // and schema, as provided via [LoadModuleMetadata]).
-func SchemaVariablesValidation(ctx context.Context, varStore *state.VariableStore, stateReader state.StateReader, modPath string) error {
+func SchemaVariablesValidation(ctx context.Context, varStore *state.VariableStore, modPath string) error {
 	mod, err := varStore.VariableRecordByPath(modPath)
 	if err != nil {
 		return err
@@ -38,10 +43,9 @@ func SchemaVariablesValidation(ctx context.Context, varStore *state.VariableStor
 		return err
 	}
 
-	d := decoder.NewDecoder(&idecoder.PathReader{
-		StateReader: stateReader,
+	d := decoder.NewDecoder(&fdecoder.PathReader{
+		StateReader: varStore,
 	})
-
 	d.SetContext(idecoder.DecoderContext(ctx))
 
 	moduleDecoder, err := d.Path(lang.Path{

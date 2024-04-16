@@ -322,24 +322,22 @@ type RecordStore interface {
 	Path() string
 }
 
-func NewRecordStores(modules *ModuleStore, roots *RootStore, variables *VariableStore,
+func NewRecordStores(roots *RootStore,
 	registryModules *RegistryModuleStore, providerSchemas *ProviderSchemaStore, terraformVersions *TerraformVersionStore) *RecordStores {
 	return &RecordStores{
-		Modules:           modules,
 		ProviderSchemas:   providerSchemas,
 		RegistryModules:   registryModules,
 		Roots:             roots,
 		TerraformVersions: terraformVersions,
-		Variables:         variables,
 	}
 }
 
 func (ds *RecordStores) ByPath(path string, recordType ast.RecordType) (RecordStore, error) {
 	if recordType == ast.RecordTypeModule {
-		return ds.Modules.ModuleByPath(path)
+		return nil, nil //ds.Modules.ModuleByPath(path)
 	}
 	if recordType == ast.RecordTypeVariable {
-		return ds.Variables.VariableRecordByPath(path)
+		return nil, nil //ds.Variables.VariableRecordByPath(path)
 	}
 	if recordType == ast.RecordTypeRoot {
 		return ds.Roots.RootRecordByPath(path)
@@ -350,10 +348,10 @@ func (ds *RecordStores) ByPath(path string, recordType ast.RecordType) (RecordSt
 
 func (ds *RecordStores) Add(path string, recordType ast.RecordType) error {
 	if recordType == ast.RecordTypeModule {
-		return ds.Modules.Add(path)
+		return nil //ds.Modules.Add(path)
 	}
 	if recordType == ast.RecordTypeVariable {
-		return ds.Variables.Add(path)
+		return nil //ds.Variables.Add(path)
 	}
 	if recordType == ast.RecordTypeRoot {
 		return ds.Roots.Add(path)
@@ -364,10 +362,10 @@ func (ds *RecordStores) Add(path string, recordType ast.RecordType) error {
 
 func (ds *RecordStores) AddIfNotExists(path string, recordType ast.RecordType) error {
 	if recordType == ast.RecordTypeModule {
-		return ds.Modules.AddIfNotExists(path)
+		return nil //ds.Modules.AddIfNotExists(path)
 	}
 	if recordType == ast.RecordTypeVariable {
-		return ds.Variables.AddIfNotExists(path)
+		return nil //ds.Variables.AddIfNotExists(path)
 	}
 	if recordType == ast.RecordTypeRoot {
 		return ds.Roots.AddIfNotExists(path)
@@ -379,17 +377,17 @@ func (ds *RecordStores) AddIfNotExists(path string, recordType ast.RecordType) e
 func (ds *RecordStores) Remove(path string) error {
 	var errs *multierror.Error
 
-	err := ds.Modules.Remove(path)
-	if err != nil {
-		errs = multierror.Append(errs, err)
-	}
+	// err := ds.Modules.Remove(path)
+	// if err != nil {
+	// 	errs = multierror.Append(errs, err)
+	// }
 
-	err = ds.Variables.Remove(path)
-	if err != nil {
-		errs = multierror.Append(errs, err)
-	}
+	// err = ds.Variables.Remove(path)
+	// if err != nil {
+	// 	errs = multierror.Append(errs, err)
+	// }
 
-	err = ds.Roots.Remove(path)
+	err := ds.Roots.Remove(path)
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
@@ -399,7 +397,7 @@ func (ds *RecordStores) Remove(path string) error {
 }
 
 func (ds *RecordStores) DeclaredModuleCalls(modPath string) (map[string]tfmod.DeclaredModuleCall, error) {
-	return ds.Modules.DeclaredModuleCalls(modPath)
+	return nil, nil //ds.Modules.DeclaredModuleCalls(modPath)
 }
 
 func (ds *RecordStores) InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error) {
@@ -407,7 +405,7 @@ func (ds *RecordStores) InstalledModuleCalls(modPath string) (map[string]tfmod.I
 }
 
 func (ds *RecordStores) LocalModuleMeta(modPath string) (*tfmod.Meta, error) {
-	return ds.Modules.LocalModuleMeta(modPath)
+	return nil, nil //ds.Modules.LocalModuleMeta(modPath)
 }
 
 func (ds *RecordStores) RegistryModuleMeta(addr tfaddr.Module, cons version.Constraints) (*registry.ModuleData, error) {
@@ -427,18 +425,21 @@ func (ds *RecordStores) InstalledTerraformVersion(modPath string) *version.Versi
 	return record.TerraformVersion
 }
 
+type ModuleRecord struct{}
+type VariableRecord struct{}
+
 func (ds *RecordStores) ModuleRecordByPath(modPath string) (*ModuleRecord, error) {
-	return ds.Modules.ModuleByPath(modPath)
+	return nil, nil //ds.Modules.ModuleByPath(modPath)
 }
 
 func (ds *RecordStores) VariableRecordByPath(modPath string) (*VariableRecord, error) {
-	return ds.Variables.VariableRecordByPath(modPath)
+	return nil, nil //ds.Variables.VariableRecordByPath(modPath)
 }
 
 func (ds *RecordStores) ListModuleRecords() ([]*ModuleRecord, error) {
-	return ds.Modules.List()
+	return nil, nil //ds.Modules.List()
 }
 
 func (ds *RecordStores) ListVariableRecords() ([]*VariableRecord, error) {
-	return ds.Variables.List()
+	return nil, nil //ds.Variables.List()
 }
