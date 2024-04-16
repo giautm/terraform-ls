@@ -538,16 +538,20 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.decoder.SetContext(decoderContext)
 
 	closedPa := state.NewPathAwaiter(svc.stateStore.WalkerPaths, false)
-	svc.closedDirWalker = walker.NewWalker(svc.fs, closedPa, svc.recordStores, svc.indexer.WalkedModule)
+	svc.closedDirWalker = walker.NewWalker(svc.fs, closedPa, svc.recordStores, nil)
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.closedDirWalker.SetLogger(svc.logger)
 
 	opendPa := state.NewPathAwaiter(svc.stateStore.WalkerPaths, true)
-	svc.openDirWalker = walker.NewWalker(svc.fs, opendPa, svc.recordStores, svc.indexer.WalkedModule)
+	svc.openDirWalker = walker.NewWalker(svc.fs, opendPa, svc.recordStores, nil)
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.openDirWalker.SetLogger(svc.logger)
 
-	moduleFlavor, err := fmodules.NewModulesFlavor(svc.logger)
+	// TODO introduce event bus?
+
+	moduleFlavor, err := fmodules.NewModulesFlavor(svc.logger,
+		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
+		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.fs)
 	if err != nil {
 		return err
 	}

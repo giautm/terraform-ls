@@ -7,18 +7,21 @@ import (
 	"context"
 	"path/filepath"
 
+	lsctx "github.com/hashicorp/terraform-ls/internal/context"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
+	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 	"github.com/hashicorp/terraform-ls/internal/terraform/parser"
 	"github.com/hashicorp/terraform-ls/internal/uri"
-	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 )
 
 // ParseModuleConfiguration parses the module configuration,
 // i.e. turns bytes of `*.tf` files into AST ([*hcl.File]).
 func ParseModuleConfiguration(ctx context.Context, fs ReadOnlyFS, modStore *state.ModuleStore, modPath string) error {
-	mod, err := modStore.ModuleByPath(modPath)
+	mod, err := modStore.ModuleRecordByPath(modPath)
 	if err != nil {
 		return err
 	}

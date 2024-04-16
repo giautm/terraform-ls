@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	globalState "github.com/hashicorp/terraform-ls/internal/state"
 )
 
 type ModuleChangeBatch struct {
@@ -63,7 +64,7 @@ func (s *ModuleStore) queueModuleChange(txn *memdb.Txn, oldMod, newMod *ModuleRe
 		cb = batch.Copy()
 	} else {
 		// create new change batch
-		isDirOpen, err := state.dirHasOpenDocuments(txn, modHandle)
+		isDirOpen, err := globalState.DirHasOpenDocuments(txn, modHandle)
 		if err != nil {
 			return err
 		}
@@ -232,7 +233,7 @@ func (ms *ModuleStore) AwaitNextChangeBatch(ctx context.Context) (ModuleChangeBa
 		return batch, nil
 	}
 
-	wCh, jobsExist, err := jobsExistForDirHandle(rTxn, batch.DirHandle)
+	wCh, jobsExist, err := globalState.JobsExistForDirHandle(rTxn, batch.DirHandle)
 	if err != nil {
 		return ModuleChangeBatch{}, err
 	}

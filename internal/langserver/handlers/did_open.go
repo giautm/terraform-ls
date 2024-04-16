@@ -37,6 +37,9 @@ func (svc *service) TextDocumentDidOpen(ctx context.Context, params lsp.DidOpenT
 		return err
 	}
 
+	svc.flavors.Modules.DidOpen(ctx, dh.Dir.Path(), params.TextDocument.LanguageID)
+	svc.flavors.Variables.DidOpen(ctx, dh.Dir.Path(), params.TextDocument.LanguageID)
+
 	recordType := ast.RecordTypeFromLanguageID(params.TextDocument.LanguageID)
 	err = svc.recordStores.AddIfNotExists(dh.Dir.Path(), recordType)
 	if err != nil {

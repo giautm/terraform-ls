@@ -425,6 +425,7 @@ func (ds *RecordStores) InstalledTerraformVersion(modPath string) *version.Versi
 	return record.TerraformVersion
 }
 
+// TODO
 type ModuleRecord struct{}
 type VariableRecord struct{}
 

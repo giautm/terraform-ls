@@ -8,9 +8,13 @@ import (
 
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
+	idecoder "github.com/hashicorp/terraform-ls/internal/decoder"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/modules/decoder"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
+	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
 // DecodeReferenceTargets collects reference targets,
@@ -21,8 +25,8 @@ import (
 // For example it tells us that variable block between certain LOC
 // can be referred to as var.foobar. This is useful e.g. during completion,
 // go-to-definition or go-to-references.
-func DecodeReferenceTargets(ctx context.Context, modStore *state.ModuleStore, stateReader state.StateReader, modPath string) error {
-	mod, err := modStore.ModuleByPath(modPath)
+func DecodeReferenceTargets(ctx context.Context, modStore *state.ModuleStore, modPath string) error {
+	mod, err := modStore.ModuleRecordByPath(modPath)
 	if err != nil {
 		return err
 	}
@@ -39,8 +43,8 @@ func DecodeReferenceTargets(ctx context.Context, modStore *state.ModuleStore, st
 		return err
 	}
 
-	d := decoder.NewDecoder(&idecoder.PathReader{
-		StateReader: stateReader,
+	d := decoder.NewDecoder(&fdecoder.PathReader{
+		StateReader: modStore,
 	})
 	d.SetContext(idecoder.DecoderContext(ctx))
 
@@ -71,8 +75,8 @@ func DecodeReferenceTargets(ctx context.Context, modStore *state.ModuleStore, st
 // For example it tells us that there is a reference address var.foobar
 // at a particular LOC. This can be later matched with targets
 // (as obtained via [DecodeReferenceTargets]) during hover or go-to-definition.
-func DecodeReferenceOrigins(ctx context.Context, modStore *state.ModuleStore, stateReader state.StateReader, modPath string) error {
-	mod, err := modStore.ModuleByPath(modPath)
+func DecodeReferenceOrigins(ctx context.Context, modStore *state.ModuleStore, modPath string) error {
+	mod, err := modStore.ModuleRecordByPath(modPath)
 	if err != nil {
 		return err
 	}
@@ -89,8 +93,8 @@ func DecodeReferenceOrigins(ctx context.Context, modStore *state.ModuleStore, st
 		return err
 	}
 
-	d := decoder.NewDecoder(&idecoder.PathReader{
-		StateReader: stateReader,
+	d := decoder.NewDecoder(&fdecoder.PathReader{
+		StateReader: modStore,
 	})
 	d.SetContext(idecoder.DecoderContext(ctx))
 

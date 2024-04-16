@@ -5,7 +5,7 @@ package decoder
 
 import (
 	"github.com/hashicorp/hcl-lang/validator"
-	"github.com/hashicorp/terraform-ls/internal/decoder/validations"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/decoder/validations"
 )
 
 var moduleValidators = []validator.Validator{

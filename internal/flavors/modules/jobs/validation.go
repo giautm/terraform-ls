@@ -10,11 +10,18 @@ import (
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/terraform-ls/internal/decoder/validations"
+	lsctx "github.com/hashicorp/terraform-ls/internal/context"
+	idecoder "github.com/hashicorp/terraform-ls/internal/decoder"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/modules/decoder"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/decoder/validations"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	"github.com/hashicorp/terraform-ls/internal/langserver/diagnostics"
+	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	"github.com/hashicorp/terraform-ls/internal/terraform/module"
+	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
 // SchemaModuleValidation does schema-based validation
@@ -24,8 +31,8 @@ import (
 // It relies on previously parsed AST (via [ParseModuleConfiguration]),
 // core schema of appropriate version (as obtained via [GetTerraformVersion])
 // and provider schemas ([PreloadEmbeddedSchema] or [ObtainSchema]).
-func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, stateReader state.StateReader, modPath string) error {
-	mod, err := modStore.ModuleByPath(modPath)
+func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, modPath string) error {
+	mod, err := modStore.ModuleRecordByPath(modPath)
 	if err != nil {
 		return err
 	}
@@ -40,10 +47,9 @@ func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, st
 		return err
 	}
 
-	d := decoder.NewDecoder(&idecoder.PathReader{
-		StateReader: stateReader,
+	d := decoder.NewDecoder(&fdecoder.PathReader{
+		StateReader: modStore,
 	})
-
 	d.SetContext(idecoder.DecoderContext(ctx))
 
 	moduleDecoder, err := d.Path(lang.Path{
@@ -91,8 +97,8 @@ func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, st
 //
 // It relies on [DecodeReferenceTargets] and [DecodeReferenceOrigins]
 // to supply both origins and targets to compare.
-func ReferenceValidation(ctx context.Context, modStore *state.ModuleStore, stateReader state.StateReader, modPath string) error {
-	mod, err := modStore.ModuleByPath(modPath)
+func ReferenceValidation(ctx context.Context, modStore *state.ModuleStore, modPath string) error {
+	mod, err := modStore.ModuleRecordByPath(modPath)
 	if err != nil {
 		return err
 	}
@@ -107,8 +113,8 @@ func ReferenceValidation(ctx context.Context, modStore *state.ModuleStore, state
 		return err
 	}
 
-	pathReader := &idecoder.PathReader{
-		StateReader: stateReader,
+	pathReader := &fdecoder.PathReader{
+		StateReader: modStore,
 	}
 	pathCtx, err := pathReader.PathContext(lang.Path{
 		Path:       modPath,
@@ -120,4 +126,37 @@ func ReferenceValidation(ctx context.Context, modStore *state.ModuleStore, state
 
 	diags := validations.UnreferencedOrigins(ctx, pathCtx)
 	return modStore.UpdateModuleDiagnostics(modPath, ast.ReferenceValidationSource, ast.ModDiagsFromMap(diags))
+}
+
+// TerraformValidate uses Terraform CLI to run validate subcommand
+// and turn the provided (JSON) output into diagnostics associated
+// with "invalid" parts of code.
+func TerraformValidate(ctx context.Context, modStore *state.ModuleStore, modPath string) error {
+	mod, err := modStore.ModuleRecordByPath(modPath)
+	if err != nil {
+		return err
+	}
+
+	// Avoid validation if it is already in progress or already finished
+	if mod.ModuleDiagnosticsState[ast.TerraformValidateSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
+		return job.StateNotChangedErr{Dir: document.DirHandleFromPath(modPath)}
+	}
+
+	err = modStore.SetModuleDiagnosticsState(modPath, ast.TerraformValidateSource, op.OpStateLoading)
+	if err != nil {
+		return err
+	}
+
+	tfExec, err := module.TerraformExecutorForModule(ctx, mod.Path())
+	if err != nil {
+		return err
+	}
+
+	jsonDiags, err := tfExec.Validate(ctx)
+	if err != nil {
+		return err
+	}
+	validateDiags := diagnostics.HCLDiagsFromJSON(jsonDiags)
+
+	return modStore.UpdateModuleDiagnostics(modPath, ast.TerraformValidateSource, ast.ModDiagsFromMap(validateDiags))
 }

@@ -10,14 +10,17 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
+	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
+	tfaddr "github.com/hashicorp/terraform-registry-address"
 	"github.com/hashicorp/terraform-schema/earlydecoder"
+	tfmodule "github.com/hashicorp/terraform-schema/module"
 )
 
 // LoadModuleMetadata loads data about the module in a version-independent
 // way that enables us to decode the rest of the configuration,
 // e.g. by knowing provider versions, Terraform Core constraint etc.
 func LoadModuleMetadata(ctx context.Context, modStore *state.ModuleStore, modPath string) error {
-	mod, err := modStore.ModuleByPath(modPath)
+	mod, err := modStore.ModuleRecordByPath(modPath)
 	if err != nil {
 		return err
 	}

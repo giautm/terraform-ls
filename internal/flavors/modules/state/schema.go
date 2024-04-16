@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/terraform-ls/internal/state"
+	globalState "github.com/hashicorp/terraform-ls/internal/state"
 )
 
 const (
@@ -56,17 +57,21 @@ var dbSchema = &memdb.DBSchema{
 	},
 }
 
-func NewModuleStore(logger *log.Logger) (*ModuleStore, error) {
+func NewModuleStore(logger *log.Logger, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore) (*ModuleStore, error) {
 	db, err := memdb.NewMemDB(dbSchema)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ModuleStore{
-		db:               db,
-		tableName:        moduleTableName,
-		logger:           logger,
-		TimeProvider:     time.Now,
-		MaxModuleNesting: 50,
+		db:                    db,
+		tableName:             moduleTableName,
+		logger:                logger,
+		TimeProvider:          time.Now,
+		MaxModuleNesting:      50,
+		providerSchemasStore:  providerSchemasStore,
+		registryModuleStore:   registryModuleStore,
+		rootStore:             rootStore,
+		terraformVersionStore: terraformVersionStore,
 	}, nil
 }

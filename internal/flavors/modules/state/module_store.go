@@ -13,10 +13,13 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl-lang/reference"
 	"github.com/hashicorp/terraform-ls/internal/state"
+	globalState "github.com/hashicorp/terraform-ls/internal/state"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
-	"github.com/hashicorp/terraform-schema/module"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
-
+	tfaddr "github.com/hashicorp/terraform-registry-address"
+	tfmod "github.com/hashicorp/terraform-schema/module"
+	"github.com/hashicorp/terraform-schema/registry"
+	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
 type ModuleStore struct {
@@ -31,6 +34,11 @@ type ModuleStore struct {
 	// MaxModuleNesting represents how many nesting levels we'd attempt
 	// to parse provider requirements before returning error.
 	MaxModuleNesting int
+
+	providerSchemasStore  *globalState.ProviderSchemaStore
+	registryModuleStore   *globalState.RegistryModuleStore
+	rootStore             *globalState.RootStore
+	terraformVersionStore *globalState.TerraformVersionStore
 }
 
 func moduleByPath(txn *memdb.Txn, path string) (*ModuleRecord, error) {
@@ -123,7 +131,7 @@ func (s *ModuleStore) Remove(modPath string) error {
 	return nil
 }
 
-func (s *ModuleStore) ModuleByPath(path string) (*ModuleRecord, error) {
+func (s *ModuleStore) ModuleRecordByPath(path string) (*ModuleRecord, error) {
 	txn := s.db.Txn(false)
 
 	mod, err := moduleByPath(txn, path)
@@ -155,15 +163,15 @@ func (s *ModuleStore) AddIfNotExists(path string) error {
 	return nil
 }
 
-func (s *ModuleStore) DeclaredModuleCalls(modPath string) (map[string]module.DeclaredModuleCall, error) {
-	mod, err := s.ModuleByPath(modPath)
+func (s *ModuleStore) DeclaredModuleCalls(modPath string) (map[string]tfmod.DeclaredModuleCall, error) {
+	mod, err := s.ModuleRecordByPath(modPath)
 	if err != nil {
-		return map[string]module.DeclaredModuleCall{}, err
+		return map[string]tfmod.DeclaredModuleCall{}, err
 	}
 
-	declared := make(map[string]module.DeclaredModuleCall)
+	declared := make(map[string]tfmod.DeclaredModuleCall)
 	for _, mc := range mod.Meta.ModuleCalls {
-		declared[mc.LocalName] = module.DeclaredModuleCall{
+		declared[mc.LocalName] = tfmod.DeclaredModuleCall{
 			LocalName:  mc.LocalName,
 			SourceAddr: mc.SourceAddr,
 			Version:    mc.Version,
@@ -175,11 +183,11 @@ func (s *ModuleStore) DeclaredModuleCalls(modPath string) (map[string]module.Dec
 	return declared, err
 }
 
-func (s *ModuleStore) ProviderRequirementsForModule(modPath string) (module.ProviderRequirements, error) {
+func (s *ModuleStore) ProviderRequirementsForModule(modPath string) (tfmod.ProviderRequirements, error) {
 	return s.providerRequirementsForModule(modPath, 0)
 }
 
-func (s *ModuleStore) providerRequirementsForModule(modPath string, level int) (module.ProviderRequirements, error) {
+func (s *ModuleStore) providerRequirementsForModule(modPath string, level int) (tfmod.ProviderRequirements, error) {
 	// This is just a naive way of checking for cycles, so we don't end up
 	// crashing due to stack overflow.
 	//
@@ -189,20 +197,20 @@ func (s *ModuleStore) providerRequirementsForModule(modPath string, level int) (
 	if level > s.MaxModuleNesting {
 		return nil, fmt.Errorf("%s: too deep module nesting (%d)", modPath, s.MaxModuleNesting)
 	}
-	mod, err := s.ModuleByPath(modPath)
+	mod, err := s.ModuleRecordByPath(modPath)
 	if err != nil {
 		return nil, err
 	}
 
 	level++
 
-	requirements := make(module.ProviderRequirements, 0)
+	requirements := make(tfmod.ProviderRequirements, 0)
 	for k, v := range mod.Meta.ProviderRequirements {
 		requirements[k] = v
 	}
 
 	for _, mc := range mod.Meta.ModuleCalls {
-		localAddr, ok := mc.SourceAddr.(module.LocalSourceAddr)
+		localAddr, ok := mc.SourceAddr.(tfmod.LocalSourceAddr)
 		if !ok {
 			continue
 		}
@@ -228,7 +236,7 @@ func (s *ModuleStore) providerRequirementsForModule(modPath string, level int) (
 	// TODO! move into RootStore
 	// if mod.ModManifest != nil {
 	// 	for _, record := range mod.ModManifest.Records {
-	// 		_, ok := record.SourceAddr.(module.LocalSourceAddr)
+	// 		_, ok := record.SourceAddr.(tfmod.LocalSourceAddr)
 	// 		if ok {
 	// 			continue
 	// 		}
@@ -267,15 +275,15 @@ func constraintContains(vCons version.Constraints, cons *version.Constraint) boo
 	return false
 }
 
-func (s *ModuleStore) LocalModuleMeta(modPath string) (*module.Meta, error) {
-	mod, err := s.ModuleByPath(modPath)
+func (s *ModuleStore) LocalModuleMeta(modPath string) (*tfmod.Meta, error) {
+	mod, err := s.ModuleRecordByPath(modPath)
 	if err != nil {
 		return nil, err
 	}
 	if mod.MetaState != op.OpStateLoaded {
 		return nil, fmt.Errorf("%s: module data not available", modPath)
 	}
-	return &module.Meta{
+	return &tfmod.Meta{
 		Path:      mod.path,
 		Filenames: mod.Meta.Filenames,
 
@@ -426,7 +434,7 @@ func (s *ModuleStore) SetMetaState(path string, state op.OpState) error {
 	return nil
 }
 
-func (s *ModuleStore) UpdateMetadata(path string, meta *module.Meta, mErr error) error {
+func (s *ModuleStore) UpdateMetadata(path string, meta *tfmod.Meta, mErr error) error {
 	txn := s.db.Txn(true)
 	txn.Defer(func() {
 		s.SetMetaState(path, op.OpStateLoaded)
@@ -601,4 +609,25 @@ func (s *ModuleStore) UpdateReferenceOrigins(path string, origins reference.Orig
 
 	txn.Commit()
 	return nil
+}
+
+func (s *ModuleStore) RegistryModuleMeta(addr tfaddr.Module, cons version.Constraints) (*registry.ModuleData, error) {
+	return s.registryModuleStore.RegistryModuleMeta(addr, cons)
+}
+
+func (s *ModuleStore) ProviderSchema(modPath string, addr tfaddr.Provider, vc version.Constraints) (*tfschema.ProviderSchema, error) {
+	return s.providerSchemasStore.ProviderSchema(modPath, addr, vc)
+}
+
+func (s *ModuleStore) InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error) {
+	return s.rootStore.InstalledModuleCalls(modPath)
+}
+
+func (s *ModuleStore) InstalledTerraformVersion(modPath string) *version.Version {
+	record, err := s.terraformVersionStore.TerraformVersionRecord()
+	if err != nil {
+		return nil
+	}
+
+	return record.TerraformVersion
 }

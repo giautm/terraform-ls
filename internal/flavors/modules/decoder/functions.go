@@ -6,7 +6,7 @@ package decoder
 import (
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl-lang/schema"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	tfmodule "github.com/hashicorp/terraform-schema/module"
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )

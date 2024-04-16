@@ -195,7 +195,7 @@ func (js *JobStore) DequeueJobsForDir(dir document.DirHandle) error {
 	return nil
 }
 
-func jobsExistForDirHandle(txn *memdb.Txn, dir document.DirHandle) (<-chan struct{}, bool, error) {
+func JobsExistForDirHandle(txn *memdb.Txn, dir document.DirHandle) (<-chan struct{}, bool, error) {
 	wCh, runningObj, err := txn.FirstWatch(jobsTableName, "dir_state", dir, StateRunning)
 	if err != nil {
 		return nil, false, err

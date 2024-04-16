@@ -25,7 +25,7 @@ func (idx *Indexer) ModuleManifestChanged(ctx context.Context, modHandle documen
 		Type:        op.OpTypeParseModuleManifest.String(),
 		IgnoreState: true,
 		Defer: func(ctx context.Context, jobErr error) (job.IDs, error) {
-			return idx.decodeInstalledModuleCalls(ctx, modHandle, true)
+			return nil, nil //idx.decodeInstalledModuleCalls(ctx, modHandle, true)
 		},
 	})
 	if err != nil {
@@ -60,7 +60,7 @@ func (idx *Indexer) PluginLockChanged(ctx context.Context, modHandle document.Di
 		Dir: modHandle,
 		Func: func(ctx context.Context) error {
 			ctx = exec.WithExecutorFactory(ctx, idx.tfExecFactory)
-			return module.ObtainSchema(ctx, idx.recordStores.Modules, idx.recordStores.ProviderSchemas, modHandle.Path())
+			return nil //module.ObtainSchema(ctx, idx.recordStores.Modules, idx.recordStores.ProviderSchemas, modHandle.Path())
 		},
 		IgnoreState: true,
 		Type:        op.OpTypeObtainSchema.String(),

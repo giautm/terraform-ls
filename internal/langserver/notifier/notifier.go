@@ -8,7 +8,9 @@ import (
 	"errors"
 	"io/ioutil"
 	"log"
+	"time"
 
+	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/state"
 )
 
@@ -22,11 +24,20 @@ type Notifier struct {
 }
 
 type ModuleStore interface {
-	AwaitNextChangeBatch(ctx context.Context) (state.ModuleChangeBatch, error)
+	AwaitNextChangeBatch(ctx context.Context) (ModuleChangeBatch, error)
 	ModuleByPath(path string) (*state.ModuleRecord, error)
 }
 
-type Hook func(ctx context.Context, changes state.ModuleChanges) error
+// TODO
+type ModuleChangeBatch struct {
+	DirHandle       document.DirHandle
+	FirstChangeTime time.Time
+	IsDirOpen       bool
+	Changes         ModuleChanges
+}
+type ModuleChanges struct{}
+
+type Hook func(ctx context.Context, changes ModuleChanges) error
 
 func NewNotifier(hooks []Hook) *Notifier {
 	return &Notifier{
