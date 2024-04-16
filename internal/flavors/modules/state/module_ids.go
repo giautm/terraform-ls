@@ -10,7 +10,7 @@ type ModuleIds struct {
 	ID   string
 }
 
-func (s *StateStore) GetModuleID(path string) (string, error) {
+func (s *ModuleStore) GetModuleID(path string) (string, error) {
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 

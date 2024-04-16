@@ -8,8 +8,8 @@ import (
 
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
-	"github.com/hashicorp/terraform-ls/internal/state"
 	"github.com/hashicorp/terraform-schema/earlydecoder"
 )
 

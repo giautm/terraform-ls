@@ -12,7 +12,11 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl-lang/reference"
+	"github.com/hashicorp/terraform-ls/internal/state"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	"github.com/hashicorp/terraform-schema/module"
+	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
+
 )
 
 type ModuleStore struct {
@@ -35,7 +39,7 @@ func moduleByPath(txn *memdb.Txn, path string) (*ModuleRecord, error) {
 		return nil, err
 	}
 	if obj == nil {
-		return nil, &RecordNotFoundError{
+		return nil, &state.RecordNotFoundError{
 			Source: path,
 		}
 	}
@@ -71,7 +75,7 @@ func (s *ModuleStore) add(txn *memdb.Txn, modPath string) error {
 		return err
 	}
 	if obj != nil {
-		return &AlreadyExistsError{
+		return &state.AlreadyExistsError{
 			Idx: modPath,
 		}
 	}
@@ -136,7 +140,7 @@ func (s *ModuleStore) AddIfNotExists(path string) error {
 
 	_, err := moduleByPath(txn, path)
 	if err != nil {
-		if IsRecordNotFound(err) {
+		if state.IsRecordNotFound(err) {
 			err := s.add(txn, path)
 			if err != nil {
 				return err
@@ -151,15 +155,15 @@ func (s *ModuleStore) AddIfNotExists(path string) error {
 	return nil
 }
 
-func (s *ModuleStore) DeclaredModuleCalls(modPath string) (map[string]tfmod.DeclaredModuleCall, error) {
+func (s *ModuleStore) DeclaredModuleCalls(modPath string) (map[string]module.DeclaredModuleCall, error) {
 	mod, err := s.ModuleByPath(modPath)
 	if err != nil {
-		return map[string]tfmod.DeclaredModuleCall{}, err
+		return map[string]module.DeclaredModuleCall{}, err
 	}
 
-	declared := make(map[string]tfmod.DeclaredModuleCall)
+	declared := make(map[string]module.DeclaredModuleCall)
 	for _, mc := range mod.Meta.ModuleCalls {
-		declared[mc.LocalName] = tfmod.DeclaredModuleCall{
+		declared[mc.LocalName] = module.DeclaredModuleCall{
 			LocalName:  mc.LocalName,
 			SourceAddr: mc.SourceAddr,
 			Version:    mc.Version,
@@ -171,11 +175,11 @@ func (s *ModuleStore) DeclaredModuleCalls(modPath string) (map[string]tfmod.Decl
 	return declared, err
 }
 
-func (s *ModuleStore) ProviderRequirementsForModule(modPath string) (tfmod.ProviderRequirements, error) {
+func (s *ModuleStore) ProviderRequirementsForModule(modPath string) (module.ProviderRequirements, error) {
 	return s.providerRequirementsForModule(modPath, 0)
 }
 
-func (s *ModuleStore) providerRequirementsForModule(modPath string, level int) (tfmod.ProviderRequirements, error) {
+func (s *ModuleStore) providerRequirementsForModule(modPath string, level int) (module.ProviderRequirements, error) {
 	// This is just a naive way of checking for cycles, so we don't end up
 	// crashing due to stack overflow.
 	//
@@ -192,13 +196,13 @@ func (s *ModuleStore) providerRequirementsForModule(modPath string, level int) (
 
 	level++
 
-	requirements := make(tfmod.ProviderRequirements, 0)
+	requirements := make(module.ProviderRequirements, 0)
 	for k, v := range mod.Meta.ProviderRequirements {
 		requirements[k] = v
 	}
 
 	for _, mc := range mod.Meta.ModuleCalls {
-		localAddr, ok := mc.SourceAddr.(tfmod.LocalSourceAddr)
+		localAddr, ok := mc.SourceAddr.(module.LocalSourceAddr)
 		if !ok {
 			continue
 		}
@@ -224,7 +228,7 @@ func (s *ModuleStore) providerRequirementsForModule(modPath string, level int) (
 	// TODO! move into RootStore
 	// if mod.ModManifest != nil {
 	// 	for _, record := range mod.ModManifest.Records {
-	// 		_, ok := record.SourceAddr.(tfmod.LocalSourceAddr)
+	// 		_, ok := record.SourceAddr.(module.LocalSourceAddr)
 	// 		if ok {
 	// 			continue
 	// 		}
@@ -263,7 +267,7 @@ func constraintContains(vCons version.Constraints, cons *version.Constraint) boo
 	return false
 }
 
-func (s *ModuleStore) LocalModuleMeta(modPath string) (*tfmod.Meta, error) {
+func (s *ModuleStore) LocalModuleMeta(modPath string) (*module.Meta, error) {
 	mod, err := s.ModuleByPath(modPath)
 	if err != nil {
 		return nil, err
@@ -271,7 +275,7 @@ func (s *ModuleStore) LocalModuleMeta(modPath string) (*tfmod.Meta, error) {
 	if mod.MetaState != op.OpStateLoaded {
 		return nil, fmt.Errorf("%s: module data not available", modPath)
 	}
-	return &tfmod.Meta{
+	return &module.Meta{
 		Path:      mod.path,
 		Filenames: mod.Meta.Filenames,
 
@@ -422,7 +426,7 @@ func (s *ModuleStore) SetMetaState(path string, state op.OpState) error {
 	return nil
 }
 
-func (s *ModuleStore) UpdateMetadata(path string, meta *tfmod.Meta, mErr error) error {
+func (s *ModuleStore) UpdateMetadata(path string, meta *module.Meta, mErr error) error {
 	txn := s.db.Txn(true)
 	txn.Defer(func() {
 		s.SetMetaState(path, op.OpStateLoaded)

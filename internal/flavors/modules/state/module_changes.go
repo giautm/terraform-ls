@@ -63,7 +63,7 @@ func (s *ModuleStore) queueModuleChange(txn *memdb.Txn, oldMod, newMod *ModuleRe
 		cb = batch.Copy()
 	} else {
 		// create new change batch
-		isDirOpen, err := dirHasOpenDocuments(txn, modHandle)
+		isDirOpen, err := state.dirHasOpenDocuments(txn, modHandle)
 		if err != nil {
 			return err
 		}

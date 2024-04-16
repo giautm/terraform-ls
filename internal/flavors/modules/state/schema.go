@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/terraform-ls/internal/state"
 )
 
 const (
@@ -44,11 +45,11 @@ var dbSchema = &memdb.DBSchema{
 				"id": {
 					Name:    "id",
 					Unique:  true,
-					Indexer: &DirHandleFieldIndexer{Field: "DirHandle"},
+					Indexer: &state.DirHandleFieldIndexer{Field: "DirHandle"},
 				},
 				"time": {
 					Name:    "time",
-					Indexer: &TimeFieldIndex{Field: "FirstChangeTime"},
+					Indexer: &state.TimeFieldIndex{Field: "FirstChangeTime"},
 				},
 			},
 		},

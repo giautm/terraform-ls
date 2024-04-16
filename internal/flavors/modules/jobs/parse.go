@@ -9,10 +9,10 @@ import (
 
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/job"
-	"github.com/hashicorp/terraform-ls/internal/state"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	"github.com/hashicorp/terraform-ls/internal/terraform/parser"
 	"github.com/hashicorp/terraform-ls/internal/uri"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 )
 
 // ParseModuleConfiguration parses the module configuration,
