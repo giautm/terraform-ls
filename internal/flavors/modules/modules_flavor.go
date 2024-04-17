@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/jobs"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
@@ -23,8 +24,10 @@ import (
 )
 
 type ModulesFlavor struct {
-	store  *state.ModuleStore
-	logger *log.Logger
+	store    *state.ModuleStore
+	eventbus *eventbus.Nexus
+	stopFunc context.CancelFunc
+	logger   *log.Logger
 
 	jobStore              *globalState.JobStore
 	providerSchemasStore  *globalState.ProviderSchemaStore
@@ -36,7 +39,7 @@ type ModulesFlavor struct {
 	fs             jobs.ReadOnlyFS
 }
 
-func NewModulesFlavor(logger *log.Logger, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore, fs jobs.ReadOnlyFS) (*ModulesFlavor, error) {
+func NewModulesFlavor(logger *log.Logger, eventbus *eventbus.Nexus, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore, fs jobs.ReadOnlyFS) (*ModulesFlavor, error) {
 	store, err := state.NewModuleStore(logger, providerSchemasStore, registryModuleStore, rootStore, terraformVersionStore)
 	if err != nil {
 		return nil, err
@@ -44,6 +47,8 @@ func NewModulesFlavor(logger *log.Logger, jobStore *globalState.JobStore, provid
 
 	return &ModulesFlavor{
 		store:                 store,
+		eventbus:              eventbus,
+		stopFunc:              func() {},
 		logger:                logger,
 		jobStore:              jobStore,
 		providerSchemasStore:  providerSchemasStore,
@@ -52,6 +57,25 @@ func NewModulesFlavor(logger *log.Logger, jobStore *globalState.JobStore, provid
 		terraformVersionStore: terraformVersionStore,
 		fs:                    fs,
 	}, nil
+}
+
+func (f *ModulesFlavor) Run(ctx context.Context) {
+	ctx, cancelFunc := context.WithCancel(ctx)
+	f.stopFunc = cancelFunc
+
+	didOpen := f.eventbus.OnDidOpen("flavor.modules")
+
+	go func() {
+		for {
+			select {
+			case open := <-didOpen:
+				f.DidOpen(open.Context, open.Path, open.LanguageID)
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID string) (job.IDs, error) {

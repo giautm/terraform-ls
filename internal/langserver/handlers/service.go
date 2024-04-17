@@ -18,6 +18,7 @@ import (
 	lsctx "github.com/hashicorp/terraform-ls/internal/context"
 	idecoder "github.com/hashicorp/terraform-ls/internal/decoder"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	"github.com/hashicorp/terraform-ls/internal/filesystem"
 	fmodules "github.com/hashicorp/terraform-ls/internal/flavors/modules"
 	fvariables "github.com/hashicorp/terraform-ls/internal/flavors/variables"
@@ -77,7 +78,8 @@ type service struct {
 	indexer        *indexer.Indexer
 	registryClient registry.Client
 
-	flavors *Flavors
+	eventbus *eventbus.Nexus
+	flavors  *Flavors
 
 	walkerCollector    *walker.WalkerCollector
 	additionalHandlers map[string]rpch.Func
@@ -547,15 +549,17 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.openDirWalker.SetLogger(svc.logger)
 
-	// TODO introduce event bus?
+	svc.eventbus = eventbus.NewNexus(svc.logger)
 
-	moduleFlavor, err := fmodules.NewModulesFlavor(svc.logger,
+	moduleFlavor, err := fmodules.NewModulesFlavor(svc.logger, svc.eventbus,
 		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
 		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.fs)
 	if err != nil {
 		return err
 	}
-	variablesFlavor, err := fvariables.NewVariablesFlavor(svc.logger, svc.stateStore.JobStore, svc.fs)
+	moduleFlavor.Run(svc.sessCtx)
+
+	variablesFlavor, err := fvariables.NewVariablesFlavor(svc.logger, svc.eventbus, svc.stateStore.JobStore, svc.fs)
 	if err != nil {
 		return err
 	}

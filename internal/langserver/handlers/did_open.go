@@ -9,6 +9,7 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	lsp "github.com/hashicorp/terraform-ls/internal/protocol"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	"github.com/hashicorp/terraform-ls/internal/uri"
@@ -37,8 +38,11 @@ func (svc *service) TextDocumentDidOpen(ctx context.Context, params lsp.DidOpenT
 		return err
 	}
 
-	svc.flavors.Modules.DidOpen(ctx, dh.Dir.Path(), params.TextDocument.LanguageID)
-	svc.flavors.Variables.DidOpen(ctx, dh.Dir.Path(), params.TextDocument.LanguageID)
+	svc.eventbus.DidOpen(eventbus.DidOpenEvent{
+		Context:    ctx,
+		Path:       dh.Dir.Path(),
+		LanguageID: params.TextDocument.LanguageID,
+	})
 
 	recordType := ast.RecordTypeFromLanguageID(params.TextDocument.LanguageID)
 	err = svc.recordStores.AddIfNotExists(dh.Dir.Path(), recordType)

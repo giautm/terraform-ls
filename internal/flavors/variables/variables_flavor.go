@@ -8,6 +8,7 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	"github.com/hashicorp/terraform-ls/internal/flavors/variables/jobs"
 	"github.com/hashicorp/terraform-ls/internal/flavors/variables/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
@@ -16,13 +17,14 @@ import (
 )
 
 type VariablesFlavor struct {
-	store *state.VariableStore
+	store    *state.VariableStore
+	eventbus *eventbus.Nexus
 
 	jobStore *globalState.JobStore
 	fs       jobs.ReadOnlyFS
 }
 
-func NewVariablesFlavor(logger *log.Logger, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*VariablesFlavor, error) {
+func NewVariablesFlavor(logger *log.Logger, eventbus *eventbus.Nexus, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*VariablesFlavor, error) {
 	store, err := state.NewVariableStore(logger)
 	if err != nil {
 		return nil, err
@@ -30,6 +32,7 @@ func NewVariablesFlavor(logger *log.Logger, jobStore *globalState.JobStore, fs j
 
 	return &VariablesFlavor{
 		store:    store,
+		eventbus: eventbus,
 		jobStore: jobStore,
 		fs:       fs,
 	}, nil
