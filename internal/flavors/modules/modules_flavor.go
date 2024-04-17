@@ -80,6 +80,7 @@ func (f *ModulesFlavor) Run(ctx context.Context) {
 
 func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID string) (job.IDs, error) {
 	ids := make(job.IDs, 0)
+	f.logger.Printf("did open %q %q", path, languageID)
 
 	// Add to state if language ID matches
 	if languageID == "terraform" {

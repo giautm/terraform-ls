@@ -94,10 +94,10 @@ func (s *ModuleStore) add(txn *memdb.Txn, modPath string) error {
 		return err
 	}
 
-	err = s.queueModuleChange(txn, nil, mod)
-	if err != nil {
-		return err
-	}
+	// err = s.queueModuleChange(txn, nil, mod)
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -116,11 +116,11 @@ func (s *ModuleStore) Remove(modPath string) error {
 		return nil
 	}
 
-	oldMod := oldObj.(*ModuleRecord)
-	err = s.queueModuleChange(txn, oldMod, nil)
-	if err != nil {
-		return err
-	}
+	// oldMod := oldObj.(*ModuleRecord)
+	// err = s.queueModuleChange(txn, oldMod, nil)
+	// if err != nil {
+	// 	return err
+	// }
 
 	_, err = txn.DeleteAll(s.tableName, "id", modPath)
 	if err != nil {
@@ -384,10 +384,10 @@ func (s *ModuleStore) FinishProviderSchemaLoading(path string, psErr error) erro
 		return err
 	}
 
-	err = s.queueModuleChange(txn, oldMod, mod)
-	if err != nil {
-		return err
-	}
+	// err = s.queueModuleChange(txn, oldMod, mod)
+	// if err != nil {
+	// 	return err
+	// }
 
 	txn.Commit()
 	return nil
@@ -465,10 +465,10 @@ func (s *ModuleStore) UpdateMetadata(path string, meta *tfmod.Meta, mErr error) 
 		return err
 	}
 
-	err = s.queueModuleChange(txn, oldMod, mod)
-	if err != nil {
-		return err
-	}
+	// err = s.queueModuleChange(txn, oldMod, mod)
+	// if err != nil {
+	// 	return err
+	// }
 
 	txn.Commit()
 	return nil
@@ -497,10 +497,10 @@ func (s *ModuleStore) UpdateModuleDiagnostics(path string, source ast.Diagnostic
 		return err
 	}
 
-	err = s.queueModuleChange(txn, oldMod, mod)
-	if err != nil {
-		return err
-	}
+	// err = s.queueModuleChange(txn, oldMod, mod)
+	// if err != nil {
+	// 	return err
+	// }
 
 	txn.Commit()
 	return nil
