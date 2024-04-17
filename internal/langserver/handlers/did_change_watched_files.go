@@ -104,7 +104,7 @@ func (svc *service) DidChangeWatchedFiles(ctx context.Context, params lsp.DidCha
 			// We don't know whether file or dir is being deleted
 			// 1st we just blindly try to look it up as a directory
 			// TODO! check other stores as well
-			_, err = svc.recordStores.Modules.ModuleByPath(rawPath)
+			_, err = svc.recordStores.Roots.RootRecordByPath(rawPath)
 			if err == nil {
 				svc.removeIndexedModule(ctx, rawURI)
 				continue
@@ -113,7 +113,7 @@ func (svc *service) DidChangeWatchedFiles(ctx context.Context, params lsp.DidCha
 			// 2nd we try again assuming it is a file
 			parentDir := filepath.Dir(rawPath)
 			// TODO! check other stores as well
-			_, err = svc.recordStores.Modules.ModuleByPath(parentDir)
+			_, err = svc.recordStores.Roots.RootRecordByPath(parentDir)
 			if err != nil {
 				svc.logger.Printf("error finding module (%q deleted): %s", parentDir, err)
 				continue
@@ -137,14 +137,14 @@ func (svc *service) DidChangeWatchedFiles(ctx context.Context, params lsp.DidCha
 
 			// if the parent directory exists, we just need to
 			// reparse the module after a file was deleted from it
-			dirHandle := document.DirHandleFromPath(parentDir)
-			jobIds, err := svc.indexer.DocumentChanged(ctx, dirHandle)
-			if err != nil {
-				svc.logger.Printf("error parsing module (%q deleted): %s", rawURI, err)
-				continue
-			}
+			// dirHandle := document.DirHandleFromPath(parentDir)
+			// jobIds, err := svc.indexer.DocumentChanged(ctx, dirHandle)
+			// if err != nil {
+			// 	svc.logger.Printf("error parsing module (%q deleted): %s", rawURI, err)
+			// 	continue
+			// }
 
-			ids = append(ids, jobIds...)
+			// ids = append(ids, jobIds...)
 		}
 
 		if change.Type == protocol.Changed {
@@ -172,19 +172,19 @@ func (svc *service) DidChangeWatchedFiles(ctx context.Context, params lsp.DidCha
 			}
 
 			// TODO! check other stores as well
-			_, err = svc.recordStores.Modules.ModuleByPath(ph.DirHandle.Path())
+			_, err = svc.recordStores.Roots.RootRecordByPath(ph.DirHandle.Path())
 			if err != nil {
 				svc.logger.Printf("error finding module (%q changed): %s", rawURI, err)
 				continue
 			}
 
-			jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
-			if err != nil {
-				svc.logger.Printf("error parsing module (%q changed): %s", rawURI, err)
-				continue
-			}
+			// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
+			// if err != nil {
+			// 	svc.logger.Printf("error parsing module (%q changed): %s", rawURI, err)
+			// 	continue
+			// }
 
-			ids = append(ids, jobIds...)
+			// ids = append(ids, jobIds...)
 		}
 
 		if change.Type == protocol.Created {
@@ -208,13 +208,13 @@ func (svc *service) DidChangeWatchedFiles(ctx context.Context, params lsp.DidCha
 					continue
 				}
 			} else {
-				jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
-				if err != nil {
-					svc.logger.Printf("error parsing module (%q created): %s", rawURI, err)
-					continue
-				}
+				// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
+				// if err != nil {
+				// 	svc.logger.Printf("error parsing module (%q created): %s", rawURI, err)
+				// 	continue
+				// }
 
-				ids = append(ids, jobIds...)
+				// ids = append(ids, jobIds...)
 			}
 		}
 	}
@@ -229,7 +229,7 @@ func (svc *service) DidChangeWatchedFiles(ctx context.Context, params lsp.DidCha
 
 func (svc *service) indexModuleIfNotExists(ctx context.Context, modHandle document.DirHandle) error {
 	// TODO! check other stores as well
-	_, err := svc.recordStores.Modules.ModuleByPath(modHandle.Path())
+	_, err := svc.recordStores.Roots.RootRecordByPath(modHandle.Path())
 	if err != nil {
 		if state.IsRecordNotFound(err) {
 			err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, modHandle)

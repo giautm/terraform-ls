@@ -29,14 +29,14 @@ func (h *CmdHandler) TerraformInitHandler(ctx context.Context, args cmd.CommandA
 
 	dirHandle := document.DirHandleFromURI(dirUri)
 
-	mod, err := h.StateStore.Modules.ModuleByPath(dirHandle.Path())
+	mod, err := h.StateStore.Roots.RootRecordByPath(dirHandle.Path())
 	if err != nil {
 		if state.IsRecordNotFound(err) {
-			err = h.StateStore.Modules.Add(dirHandle.Path())
+			err = h.StateStore.Roots.Add(dirHandle.Path())
 			if err != nil {
 				return nil, err
 			}
-			mod, err = h.StateStore.Modules.ModuleByPath(dirHandle.Path())
+			mod, err = h.StateStore.Roots.RootRecordByPath(dirHandle.Path())
 			if err != nil {
 				return nil, err
 			}

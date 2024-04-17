@@ -3,6 +3,7 @@
 
 package handlers
 
+/* TODO reintroduce
 import (
 	"context"
 	"fmt"
@@ -230,3 +231,4 @@ func refreshSemanticTokens(clientRequester session.ClientCaller) notifier.Hook {
 		return nil
 	}
 }
+*/

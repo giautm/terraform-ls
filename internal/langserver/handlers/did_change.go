@@ -60,10 +60,10 @@ func (svc *service) TextDocumentDidChange(ctx context.Context, params lsp.DidCha
 		return err
 	}
 
-	jobIds, err := svc.indexer.DocumentChanged(ctx, dh.Dir)
-	if err != nil {
-		return err
-	}
+	// jobIds, err := svc.indexer.DocumentChanged(ctx, dh.Dir)
+	// if err != nil {
+	// 	return err
+	// }
 
-	return svc.stateStore.JobStore.WaitForJobs(ctx, jobIds...)
+	return nil //svc.stateStore.JobStore.WaitForJobs(ctx, jobIds...)
 }

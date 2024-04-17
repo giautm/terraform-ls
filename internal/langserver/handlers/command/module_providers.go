@@ -43,27 +43,27 @@ func (h *CmdHandler) ModuleProvidersHandler(ctx context.Context, args cmd.Comman
 		return response, fmt.Errorf("URI %q is not valid", modUri)
 	}
 
-	modPath, err := uri.PathFromURI(modUri)
-	if err != nil {
-		return response, err
-	}
+	// modPath, err := uri.PathFromURI(modUri)
+	// if err != nil {
+	// 	return response, err
+	// }
 
-	mod, _ := h.StateStore.Modules.ModuleByPath(modPath)
-	if mod == nil {
-		return response, nil
-	}
+	// mod, _ := h.StateStore.Modules.ModuleByPath(modPath)
+	// if mod == nil {
+	// 	return response, nil
+	// }
 
-	for provider, version := range mod.Meta.ProviderRequirements {
-		docsLink, err := getProviderDocumentationLink(ctx, provider)
-		if err != nil {
-			return response, err
-		}
-		response.ProviderRequirements[provider.String()] = providerRequirement{
-			DisplayName:       provider.ForDisplay(),
-			VersionConstraint: version.String(),
-			DocsLink:          docsLink,
-		}
-	}
+	// for provider, version := range mod.Meta.ProviderRequirements {
+	// 	docsLink, err := getProviderDocumentationLink(ctx, provider)
+	// 	if err != nil {
+	// 		return response, err
+	// 	}
+	// 	response.ProviderRequirements[provider.String()] = providerRequirement{
+	// 		DisplayName:       provider.ForDisplay(),
+	// 		VersionConstraint: version.String(),
+	// 		DocsLink:          docsLink,
+	// 	}
+	// }
 
 	// TODO!
 	// for provider, version := range mod.InstalledProviders {

@@ -52,21 +52,14 @@ func (svc *service) TextDocumentDidOpen(ctx context.Context, params lsp.DidOpenT
 
 	svc.logger.Printf("opened %s: %s", recordType, dh.Dir.Path())
 
-	// We reparse because the file being opened may not match
-	// (originally parsed) content on the disk
-	// TODO: Do this only if we can verify the file differs?
 	modHandle := document.DirHandleFromPath(dh.Dir.Path())
-	jobIds, err := svc.indexer.DocumentOpened(ctx, modHandle)
-	if err != nil {
-		return err
-	}
-
 	if svc.singleFileMode {
+		// TODO
 		err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, modHandle)
 		if err != nil {
 			return err
 		}
 	}
 
-	return svc.stateStore.JobStore.WaitForJobs(ctx, jobIds...)
+	return nil
 }
