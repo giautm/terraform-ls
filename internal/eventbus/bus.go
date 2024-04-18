@@ -20,29 +20,50 @@ type DidOpenEvent struct {
 	// IncludeSubmodules bool
 }
 
+type DidChangeEvent struct {
+	Context context.Context
+
+	Path       string
+	LanguageID string
+
+	// IncludeSubmodules bool
+}
+
 type EventBus struct {
 	logger *log.Logger
 
-	documentOpenTopic *Topic[DidOpenEvent]
+	didOpenTopic   *Topic[DidOpenEvent]
+	didChangeTopic *Topic[DidChangeEvent]
 	// documentCloseTopic *Topic[DocumentCloseEvent]
 	// tooltipOpen        *Topic[TooltipOpenEvent]
 }
 
 func NewEventBus(log *log.Logger) *EventBus {
 	return &EventBus{
-		logger:            log,
-		documentOpenTopic: NewTopic[DidOpenEvent](),
+		logger:         log,
+		didOpenTopic:   NewTopic[DidOpenEvent](),
+		didChangeTopic: NewTopic[DidChangeEvent](),
 	}
 }
 
 func (n *EventBus) OnDidOpen(identifier string) <-chan DidOpenEvent {
 	n.logger.Printf("bus: %q subscribed to OnDidOpen", identifier)
-	return n.documentOpenTopic.Subscribe()
+	return n.didOpenTopic.Subscribe()
 }
 
 func (n *EventBus) DidOpen(e DidOpenEvent) {
 	n.logger.Printf("bus: -> DidOpen %s", e.Path)
-	n.documentOpenTopic.Publish(e)
+	n.didOpenTopic.Publish(e)
+}
+
+func (n *EventBus) OnDidChange(identifier string) <-chan DidChangeEvent {
+	n.logger.Printf("bus: %q subscribed to OnDidChange", identifier)
+	return n.didChangeTopic.Subscribe()
+}
+
+func (n *EventBus) DidChange(e DidChangeEvent) {
+	n.logger.Printf("bus: -> DidChange %s", e.Path)
+	n.didChangeTopic.Publish(e)
 }
 
 // Topic represents a generic subscription topic

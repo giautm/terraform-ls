@@ -8,9 +8,9 @@ import (
 
 	lsctx "github.com/hashicorp/terraform-ls/internal/context"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
 	lsp "github.com/hashicorp/terraform-ls/internal/protocol"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 )
 
 func (svc *service) TextDocumentDidChange(ctx context.Context, params lsp.DidChangeTextDocumentParams) error {
@@ -54,11 +54,11 @@ func (svc *service) TextDocumentDidChange(ctx context.Context, params lsp.DidCha
 		return err
 	}
 
-	// check existence
-	_, err = svc.recordStores.ByPath(dh.Dir.Path(), ast.RecordTypeFromLanguageID(doc.LanguageID))
-	if err != nil {
-		return err
-	}
+	svc.eventBus.DidChange(eventbus.DidChangeEvent{
+		Context:    ctx,
+		Path:       dh.Dir.Path(),
+		LanguageID: doc.LanguageID,
+	})
 
 	// jobIds, err := svc.indexer.DocumentChanged(ctx, dh.Dir)
 	// if err != nil {

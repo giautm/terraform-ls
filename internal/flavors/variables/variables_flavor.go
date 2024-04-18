@@ -22,6 +22,7 @@ import (
 type VariablesFlavor struct {
 	store    *state.VariableStore
 	eventbus *eventbus.EventBus
+	stopFunc context.CancelFunc
 
 	jobStore *globalState.JobStore
 	fs       jobs.ReadOnlyFS
@@ -36,9 +37,32 @@ func NewVariablesFlavor(logger *log.Logger, eventbus *eventbus.EventBus, jobStor
 	return &VariablesFlavor{
 		store:    store,
 		eventbus: eventbus,
+		stopFunc: func() {},
 		jobStore: jobStore,
 		fs:       fs,
 	}, nil
+}
+
+func (f *VariablesFlavor) Run(ctx context.Context) {
+	ctx, cancelFunc := context.WithCancel(ctx)
+	f.stopFunc = cancelFunc
+
+	didOpen := f.eventbus.OnDidOpen("flavor.variables")
+	didChange := f.eventbus.OnDidChange("flavor.variables")
+	go func() {
+		for {
+			select {
+			case open := <-didOpen:
+				f.DidOpen(open.Context, open.Path, open.LanguageID)
+			case didChange := <-didChange:
+				// TODO move into own handler
+				f.DidOpen(didChange.Context, didChange.Path, didChange.LanguageID)
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 func (f *VariablesFlavor) DidOpen(ctx context.Context, path string, languageID string) (job.IDs, error) {

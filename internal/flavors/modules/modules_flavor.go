@@ -67,11 +67,15 @@ func (f *ModulesFlavor) Run(ctx context.Context) {
 	f.stopFunc = cancelFunc
 
 	didOpen := f.eventbus.OnDidOpen("flavor.modules")
+	didChange := f.eventbus.OnDidChange("flavor.modules")
 	go func() {
 		for {
 			select {
 			case open := <-didOpen:
 				f.DidOpen(open.Context, open.Path, open.LanguageID)
+			case didChange := <-didChange:
+				// TODO move into own handler
+				f.DidOpen(didChange.Context, didChange.Path, didChange.LanguageID)
 
 			case <-ctx.Done():
 				return
