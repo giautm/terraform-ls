@@ -556,6 +556,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	if err != nil {
 		return err
 	}
+	variablesFlavor.Run(svc.sessCtx)
 
 	svc.flavors = &Flavors{
 		Modules:   moduleFlavor,

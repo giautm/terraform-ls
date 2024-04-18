@@ -30,6 +30,9 @@ func (svc *service) TextDocumentComplete(ctx context.Context, params lsp.Complet
 		return list, err
 	}
 
+	// TODO check if there are jobs in flight for this dh
+	// TODO wait on jobs
+
 	expFeatures, err := lsctx.ExperimentalFeatures(ctx)
 	if err != nil {
 		return list, err
