@@ -3,21 +3,25 @@
 
 package state
 
-import "github.com/hashicorp/terraform-ls/internal/terraform/ast"
+import "github.com/hashicorp/terraform-ls/internal/flavors/stacks/ast"
 
 type StacksRecord struct {
 	path string
 
-	ParsedStacksFiles ast.ModFiles
+	ParsedStacksFiles ast.StacksFiles
 	StacksParsingErr  error
 
-	StacksDiagnostics      ast.SourceModDiags
+	StacksDiagnostics      ast.SourceStacksDiags
 	StacksDiagnosticsState ast.DiagnosticSourceState
 }
 
-func newModule(modPath string) *StacksRecord {
+func (s *StacksRecord) Path() string {
+	return s.path
+}
+
+func newStacks(stacksPath string) *StacksRecord {
 	return &StacksRecord{
-		path: modPath,
+		path: stacksPath,
 	}
 }
 

@@ -45,6 +45,11 @@ func (svc *service) TextDocumentDidOpen(ctx context.Context, params lsp.DidOpenT
 	})
 
 	recordType := ast.RecordTypeFromLanguageID(params.TextDocument.LanguageID)
+	if recordType == ast.RecordTypeStacks {
+		svc.logger.Printf("opened stack %s: %s", recordType, dh.Dir.Path())
+		return nil
+	}
+
 	err = svc.recordStores.AddIfNotExists(dh.Dir.Path(), recordType)
 	if err != nil {
 		return err

@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	"github.com/hashicorp/terraform-ls/internal/filesystem"
 	fmodules "github.com/hashicorp/terraform-ls/internal/flavors/modules"
+	fstacks "github.com/hashicorp/terraform-ls/internal/flavors/stacks"
 	fvariables "github.com/hashicorp/terraform-ls/internal/flavors/variables"
 	"github.com/hashicorp/terraform-ls/internal/indexer"
 	"github.com/hashicorp/terraform-ls/internal/job"
@@ -47,6 +48,7 @@ import (
 type Flavors struct {
 	Modules   *fmodules.ModulesFlavor
 	Variables *fvariables.VariablesFlavor
+	Stacks    *fstacks.StacksFlavor
 }
 
 type service struct {
@@ -523,7 +525,8 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	// svc.notifier.Start(svc.sessCtx)
 
 	svc.recordStores = state.NewRecordStores(svc.stateStore.Roots,
-		svc.stateStore.RegistryModules, svc.stateStore.ProviderSchemas, svc.stateStore.TerraformVersions)
+		svc.stateStore.RegistryModules, svc.stateStore.ProviderSchemas,
+		svc.stateStore.TerraformVersions)
 
 	svc.fs = filesystem.NewFilesystem(svc.stateStore.DocumentStore)
 	svc.fs.SetLogger(svc.logger)
@@ -558,16 +561,27 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	}
 	variablesFlavor.Run(svc.sessCtx)
 
+	stacksFlavor, err := fstacks.NewStacksFlavor(
+		svc.logger,
+		svc.eventBus,
+		svc.stateStore.JobStore,
+		svc.fs)
+	if err != nil {
+		return err
+	}
+	stacksFlavor.Run(svc.sessCtx)
+
 	svc.flavors = &Flavors{
 		Modules:   moduleFlavor,
 		Variables: variablesFlavor,
+		Stacks:    stacksFlavor,
 	}
 
 	svc.decoder = decoder.NewDecoder(&idecoder.GlobalPathReader{
 		PathReaderMap: idecoder.PathReaderMap{
 			"terraform":      moduleFlavor,
 			"terraform-vars": variablesFlavor,
-			// "terraform-stacks": stacksFlavor,
+			"terraform-stacks": stacksFlavor,
 			// "terraform-deploy": stacksFlavor,
 		},
 	})

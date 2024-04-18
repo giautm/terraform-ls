@@ -9,22 +9,13 @@ import "strings"
 type RecordType int64
 
 const (
-	RecordTypeModule RecordType = iota
-	RecordTypeVariable
-	RecordTypeRoot
-	RecordTypeStacks
+	RecordTypeStacks RecordType = iota
 )
 
 func (rt RecordType) String() string {
 	switch rt {
 	case RecordTypeStacks:
 		return "stacks"
-	case RecordTypeModule:
-		return "module"
-	case RecordTypeVariable:
-		return "variable"
-	case RecordTypeRoot:
-		return "root"
 	default:
 		return "unknown"
 	}
@@ -32,10 +23,6 @@ func (rt RecordType) String() string {
 
 func RecordTypeFromLanguageID(languageID string) RecordType {
 	switch languageID {
-	case "terraform":
-		return RecordTypeModule
-	case "terraform-vars":
-		return RecordTypeVariable
 	case "terraform-stacks":
 		return RecordTypeStacks
 	default:
@@ -44,7 +31,7 @@ func RecordTypeFromLanguageID(languageID string) RecordType {
 }
 
 func IsSupportedFilename(name string) bool {
-	return IsModuleFilename(name) || IsVarsFilename(name)
+	return IsStacksFilename(name)
 }
 
 // isIgnoredFile returns true if the given filename (which must not have a

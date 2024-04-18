@@ -7,7 +7,11 @@ import (
 	"context"
 	"log"
 
+	"github.com/hashicorp/hcl-lang/decoder"
+	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/eventbus"
+	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/stacks/decoder"
 	"github.com/hashicorp/terraform-ls/internal/flavors/stacks/jobs"
 	"github.com/hashicorp/terraform-ls/internal/flavors/stacks/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
@@ -16,13 +20,16 @@ import (
 )
 
 type StacksFlavor struct {
-	store *state.StacksStore
+	store    *state.StacksStore
+	eventbus *eventbus.EventBus
+	stopFunc context.CancelFunc
+	logger   *log.Logger
 
 	jobStore *globalState.JobStore
 	fs       jobs.ReadOnlyFS
 }
 
-func NewStacksFlavor(logger *log.Logger, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*StacksFlavor, error) {
+func NewStacksFlavor(logger *log.Logger, eventbus *eventbus.EventBus, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*StacksFlavor, error) {
 	store, err := state.NewStacksStore(logger)
 	if err != nil {
 		return nil, err
@@ -30,9 +37,34 @@ func NewStacksFlavor(logger *log.Logger, jobStore *globalState.JobStore, fs jobs
 
 	return &StacksFlavor{
 		store:    store,
+		eventbus: eventbus,
+		stopFunc: func() {},
+		logger:   logger,
 		jobStore: jobStore,
 		fs:       fs,
 	}, nil
+}
+
+func (f *StacksFlavor) Run(ctx context.Context) {
+	ctx, cancelFunc := context.WithCancel(ctx)
+	f.stopFunc = cancelFunc
+
+	didOpen := f.eventbus.OnDidOpen("flavor.stacks")
+	didChange := f.eventbus.OnDidChange("flavor.stacks")
+	go func() {
+		for {
+			select {
+			case open := <-didOpen:
+				f.DidOpen(open.Context, open.Path, open.LanguageID)
+			case didChange := <-didChange:
+				// TODO move into own handler
+				f.DidOpen(didChange.Context, didChange.Path, didChange.LanguageID)
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 func (f *StacksFlavor) DidOpen(ctx context.Context, path string, languageID string) (job.IDs, error) {
@@ -47,14 +79,14 @@ func (f *StacksFlavor) DidOpen(ctx context.Context, path string, languageID stri
 	}
 
 	// Schedule jobs if state entry exists
-	hasVariableRecord := f.store.Exists(path)
-	if !hasVariableRecord {
+	hasStacksRecord := f.store.Exists(path)
+	if !hasStacksRecord {
 		return ids, nil
 	}
 
-	modHandle := document.DirHandleFromPath(path)
-	parseVarsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: modHandle,
+	stacksHandle := document.DirHandleFromPath(path)
+	parseStacksId, err := f.jobStore.EnqueueJob(ctx, job.Job{
+		Dir: stacksHandle,
 		Func: func(ctx context.Context) error {
 			return jobs.ParseStack(ctx, f.fs, f.store, path)
 		},
@@ -64,7 +96,23 @@ func (f *StacksFlavor) DidOpen(ctx context.Context, path string, languageID stri
 	if err != nil {
 		return ids, err
 	}
-	ids = append(ids, parseVarsId)
+	ids = append(ids, parseStacksId)
 
 	return ids, nil
+}
+
+func (f *StacksFlavor) PathContext(path lang.Path) (*decoder.PathContext, error) {
+	pathReader := &fdecoder.PathReader{
+		StateReader: f.store,
+	}
+
+	return pathReader.PathContext(path)
+}
+
+func (f *StacksFlavor) Paths(ctx context.Context) []lang.Path {
+	paths := make([]lang.Path, 0)
+
+	// TODO
+
+	return paths
 }

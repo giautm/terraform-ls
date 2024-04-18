@@ -7,8 +7,8 @@ import (
 	"log"
 
 	"github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/terraform-ls/internal/flavors/stacks/ast"
 	"github.com/hashicorp/terraform-ls/internal/state"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
@@ -63,6 +63,23 @@ func (s *StacksStore) Exists(path string) bool {
 	return obj != nil
 }
 
+func (s *StacksStore) List() ([]*StacksRecord, error) {
+	txn := s.db.Txn(false)
+
+	it, err := txn.Get(s.tableName, "id")
+	if err != nil {
+		return nil, err
+	}
+
+	stacks := make([]*StacksRecord, 0)
+	for item := it.Next(); item != nil; item = it.Next() {
+		stack := item.(*StacksRecord)
+		stacks = append(stacks, stack)
+	}
+
+	return stacks, nil
+}
+
 func (s *StacksStore) StacksRecordByPath(path string) (*StacksRecord, error) {
 	txn := s.db.Txn(false)
 
@@ -97,7 +114,7 @@ func (s *StacksStore) SetStacksDiagnosticsState(
 	return nil
 }
 
-func (s *StacksStore) UpdateParsedStacksFiles(path string, pFiles ast.ModFiles, pErr error) error {
+func (s *StacksStore) UpdateParsedStacksFiles(path string, pFiles ast.StacksFiles, pErr error) error {
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
@@ -119,7 +136,7 @@ func (s *StacksStore) UpdateParsedStacksFiles(path string, pFiles ast.ModFiles, 
 	return nil
 }
 
-func (s *StacksStore) UpdateStacksDiagnostics(path string, source ast.DiagnosticSource, diags ast.ModDiags) error {
+func (s *StacksStore) UpdateStacksDiagnostics(path string, source ast.DiagnosticSource, diags ast.StacksDiags) error {
 	txn := s.db.Txn(true)
 	txn.Defer(func() {
 		s.SetStacksDiagnosticsState(path, source, op.OpStateLoaded)
@@ -133,7 +150,7 @@ func (s *StacksStore) UpdateStacksDiagnostics(path string, source ast.Diagnostic
 
 	stack := oldStack.Copy()
 	if stack.StacksDiagnostics == nil {
-		stack.StacksDiagnostics = make(ast.SourceModDiags)
+		stack.StacksDiagnostics = make(ast.SourceStacksDiags)
 	}
 	stack.StacksDiagnostics[source] = diags
 
@@ -164,7 +181,7 @@ func (s *StacksStore) add(txn *memdb.Txn, modPath string) error {
 		}
 	}
 
-	mod := newModule(modPath)
+	mod := newStacks(modPath)
 	err = txn.Insert(s.tableName, mod)
 	if err != nil {
 		return err
