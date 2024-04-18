@@ -70,12 +70,16 @@ func (f *StacksFlavor) Run(ctx context.Context) {
 func (f *StacksFlavor) DidOpen(ctx context.Context, path string, languageID string) (job.IDs, error) {
 	ids := make(job.IDs, 0)
 
-	// Add to state if language ID matches
-	if languageID == "terraform-stacks" {
-		err := f.store.AddIfNotExists(path)
-		if err != nil {
-			return ids, err
-		}
+	if languageID != "terraform-stacks" {
+		// we should return here if the languageID is not "terraform-stacks"
+		// so we don't attempt to process a language that's not stacks
+		return ids, nil
+	}
+
+	// Add to state if it doesnt exist
+	err := f.store.AddIfNotExists(path)
+	if err != nil {
+		return ids, err
 	}
 
 	// Schedule jobs if state entry exists

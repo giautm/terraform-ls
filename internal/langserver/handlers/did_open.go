@@ -46,6 +46,7 @@ func (svc *service) TextDocumentDidOpen(ctx context.Context, params lsp.DidOpenT
 
 	recordType := ast.RecordTypeFromLanguageID(params.TextDocument.LanguageID)
 	if recordType == ast.RecordTypeStacks {
+		// TODO: stacks does not have a recordstore and we're moving away from that, so this should go away
 		svc.logger.Printf("opened stack %s: %s", recordType, dh.Dir.Path())
 		return nil
 	}
