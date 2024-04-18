@@ -38,7 +38,7 @@ func (svc *service) TextDocumentDidOpen(ctx context.Context, params lsp.DidOpenT
 		return err
 	}
 
-	svc.eventbus.DidOpen(eventbus.DidOpenEvent{
+	svc.eventBus.DidOpen(eventbus.DidOpenEvent{
 		Context:    ctx,
 		Path:       dh.Dir.Path(),
 		LanguageID: params.TextDocument.LanguageID,

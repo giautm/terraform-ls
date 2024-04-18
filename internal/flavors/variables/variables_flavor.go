@@ -7,8 +7,11 @@ import (
 	"context"
 	"log"
 
+	"github.com/hashicorp/hcl-lang/decoder"
+	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
+	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/variables/decoder"
 	"github.com/hashicorp/terraform-ls/internal/flavors/variables/jobs"
 	"github.com/hashicorp/terraform-ls/internal/flavors/variables/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
@@ -18,13 +21,13 @@ import (
 
 type VariablesFlavor struct {
 	store    *state.VariableStore
-	eventbus *eventbus.Nexus
+	eventbus *eventbus.EventBus
 
 	jobStore *globalState.JobStore
 	fs       jobs.ReadOnlyFS
 }
 
-func NewVariablesFlavor(logger *log.Logger, eventbus *eventbus.Nexus, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*VariablesFlavor, error) {
+func NewVariablesFlavor(logger *log.Logger, eventbus *eventbus.EventBus, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*VariablesFlavor, error) {
 	store, err := state.NewVariableStore(logger)
 	if err != nil {
 		return nil, err
@@ -83,4 +86,20 @@ func (f *VariablesFlavor) DidOpen(ctx context.Context, path string, languageID s
 	ids = append(ids, varsRefsId)
 
 	return ids, nil
+}
+
+func (f *VariablesFlavor) PathContext(path lang.Path) (*decoder.PathContext, error) {
+	pathReader := &fdecoder.PathReader{
+		StateReader: f.store,
+	}
+
+	return pathReader.PathContext(path)
+}
+
+func (f *VariablesFlavor) Paths(ctx context.Context) []lang.Path {
+	paths := make([]lang.Path, 0)
+
+	// TODO
+
+	return paths
 }

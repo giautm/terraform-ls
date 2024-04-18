@@ -73,7 +73,7 @@ func TestDecoder_CodeLensesForFile_concurrencyBug(t *testing.T) {
 		err = module.PreloadEmbeddedSchema(ctx, logger, schemasFs, ss.Modules, ss.ProviderSchemas, dirName)
 	}
 
-	d := decoder.NewDecoder(&idecoder.PathReader{
+	d := decoder.NewDecoder(&idecoder.GlobalPathReader{
 		ModuleReader: ss.Modules,
 		SchemaReader: ss.ProviderSchemas,
 	})

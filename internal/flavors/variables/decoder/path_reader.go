@@ -45,6 +45,6 @@ func (pr *PathReader) PathContext(path lang.Path) (*decoder.PathContext, error) 
 	if err != nil {
 		return nil, err
 	}
-	return varsPathContext(mod, pr.StateReader)
+	return variablePathContext(mod, pr.StateReader)
 
 }

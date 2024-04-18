@@ -78,7 +78,7 @@ type service struct {
 	indexer        *indexer.Indexer
 	registryClient registry.Client
 
-	eventbus *eventbus.Nexus
+	eventBus *eventbus.EventBus
 	flavors  *Flavors
 
 	walkerCollector    *walker.WalkerCollector
@@ -532,11 +532,6 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 		svc.stateStore.JobStore, svc.tfExecFactory, svc.registryClient)
 	svc.indexer.SetLogger(svc.logger)
 
-	svc.decoder = decoder.NewDecoder(&idecoder.PathReader{})
-	decoderContext := idecoder.DecoderContext(ctx)
-	svc.AppendCompletionHooks(decoderContext)
-	svc.decoder.SetContext(decoderContext)
-
 	closedPa := state.NewPathAwaiter(svc.stateStore.WalkerPaths, false)
 	svc.closedDirWalker = walker.NewWalker(svc.fs, closedPa, svc.recordStores, nil)
 	svc.closedDirWalker.Collector = svc.walkerCollector
@@ -547,9 +542,9 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.openDirWalker.SetLogger(svc.logger)
 
-	svc.eventbus = eventbus.NewNexus(svc.logger)
+	svc.eventBus = eventbus.NewEventBus(svc.logger)
 
-	moduleFlavor, err := fmodules.NewModulesFlavor(svc.logger, svc.eventbus,
+	moduleFlavor, err := fmodules.NewModulesFlavor(svc.logger, svc.eventBus,
 		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
 		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.fs)
 	if err != nil {
@@ -557,14 +552,27 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	}
 	moduleFlavor.Run(svc.sessCtx)
 
-	variablesFlavor, err := fvariables.NewVariablesFlavor(svc.logger, svc.eventbus, svc.stateStore.JobStore, svc.fs)
+	variablesFlavor, err := fvariables.NewVariablesFlavor(svc.logger, svc.eventBus, svc.stateStore.JobStore, svc.fs)
 	if err != nil {
 		return err
 	}
+
 	svc.flavors = &Flavors{
 		Modules:   moduleFlavor,
 		Variables: variablesFlavor,
 	}
+
+	svc.decoder = decoder.NewDecoder(&idecoder.GlobalPathReader{
+		PathReaderMap: idecoder.PathReaderMap{
+			"terraform":      moduleFlavor,
+			"terraform-vars": variablesFlavor,
+			// "terraform-stacks": stacksFlavor,
+			// "terraform-deploy": stacksFlavor,
+		},
+	})
+	decoderContext := idecoder.DecoderContext(ctx)
+	svc.AppendCompletionHooks(decoderContext)
+	svc.decoder.SetContext(decoderContext)
 
 	return nil
 }

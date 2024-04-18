@@ -16,9 +16,11 @@ type DidOpenEvent struct {
 
 	Path       string
 	LanguageID string
+
+	// IncludeSubmodules bool
 }
 
-type Nexus struct {
+type EventBus struct {
 	logger *log.Logger
 
 	documentOpenTopic *Topic[DidOpenEvent]
@@ -26,19 +28,19 @@ type Nexus struct {
 	// tooltipOpen        *Topic[TooltipOpenEvent]
 }
 
-func NewNexus(log *log.Logger) *Nexus {
-	return &Nexus{
+func NewEventBus(log *log.Logger) *EventBus {
+	return &EventBus{
 		logger:            log,
 		documentOpenTopic: NewTopic[DidOpenEvent](),
 	}
 }
 
-func (n *Nexus) OnDidOpen(identifier string) <-chan DidOpenEvent {
+func (n *EventBus) OnDidOpen(identifier string) <-chan DidOpenEvent {
 	n.logger.Printf("bus: %q subscribed to OnDidOpen", identifier)
 	return n.documentOpenTopic.Subscribe()
 }
 
-func (n *Nexus) DidOpen(e DidOpenEvent) {
+func (n *EventBus) DidOpen(e DidOpenEvent) {
 	n.logger.Printf("bus: -> DidOpen %s", e.Path)
 	n.documentOpenTopic.Publish(e)
 }

@@ -11,8 +11,11 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/hcl-lang/decoder"
+	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
+	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/modules/decoder"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/jobs"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
@@ -25,7 +28,7 @@ import (
 
 type ModulesFlavor struct {
 	store    *state.ModuleStore
-	eventbus *eventbus.Nexus
+	eventbus *eventbus.EventBus
 	stopFunc context.CancelFunc
 	logger   *log.Logger
 
@@ -39,7 +42,7 @@ type ModulesFlavor struct {
 	fs             jobs.ReadOnlyFS
 }
 
-func NewModulesFlavor(logger *log.Logger, eventbus *eventbus.Nexus, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore, fs jobs.ReadOnlyFS) (*ModulesFlavor, error) {
+func NewModulesFlavor(logger *log.Logger, eventbus *eventbus.EventBus, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore, fs jobs.ReadOnlyFS) (*ModulesFlavor, error) {
 	store, err := state.NewModuleStore(logger, providerSchemasStore, registryModuleStore, rootStore, terraformVersionStore)
 	if err != nil {
 		return nil, err
@@ -64,7 +67,6 @@ func (f *ModulesFlavor) Run(ctx context.Context) {
 	f.stopFunc = cancelFunc
 
 	didOpen := f.eventbus.OnDidOpen("flavor.modules")
-
 	go func() {
 		for {
 			select {
@@ -350,4 +352,20 @@ func (f *ModulesFlavor) collectReferences(ctx context.Context, modHandle documen
 	}
 
 	return ids, errs.ErrorOrNil()
+}
+
+func (f *ModulesFlavor) PathContext(path lang.Path) (*decoder.PathContext, error) {
+	pathReader := &fdecoder.PathReader{
+		StateReader: f.store,
+	}
+
+	return pathReader.PathContext(path)
+}
+
+func (f *ModulesFlavor) Paths(ctx context.Context) []lang.Path {
+	paths := make([]lang.Path, 0)
+
+	// TODO
+
+	return paths
 }

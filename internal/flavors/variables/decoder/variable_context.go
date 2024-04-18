@@ -13,7 +13,7 @@ import (
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
-func varsPathContext(mod *state.VariableRecord, stateReader StateReader) (*decoder.PathContext, error) {
+func variablePathContext(mod *state.VariableRecord, stateReader StateReader) (*decoder.PathContext, error) {
 	variables := make(map[string]tfmod.Variable)
 	// TODO: GET SCHEMA FROM MODULE
 	// meta, err := stateReader.LocalModuleMeta(mod.Path())
