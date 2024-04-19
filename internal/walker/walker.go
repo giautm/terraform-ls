@@ -7,14 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"path/filepath"
 
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
-	"github.com/hashicorp/terraform-ls/internal/job"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -23,7 +22,7 @@ import (
 )
 
 var (
-	discardLogger = log.New(ioutil.Discard, "", 0)
+	discardLogger = log.New(io.Discard, "", 0)
 
 	// skipDirNames represent directory names which would never contain
 	// plugin/module cache, so it's safe to skip them during the walk
@@ -37,8 +36,6 @@ var (
 		".terragrunt-cache":   true,
 	}
 )
-
-type pathToWatch struct{}
 
 type Walker struct {
 	fs           fs.ReadDirFS
@@ -168,14 +165,6 @@ func (w *Walker) StartWalking(ctx context.Context) error {
 func (w *Walker) collectError(err error) {
 	if w.Collector != nil {
 		w.Collector.CollectError(err)
-	}
-}
-
-func (w *Walker) collectJobIds(jobIds job.IDs) {
-	if w.Collector != nil {
-		for _, id := range jobIds {
-			w.Collector.CollectJobId(id)
-		}
 	}
 }
 
