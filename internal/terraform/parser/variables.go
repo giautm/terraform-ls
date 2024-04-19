@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	"github.com/hashicorp/terraform-ls/internal/flavors/variables/ast"
 )
 
 func ParseVariableFiles(fs FS, modPath string) (ast.VarsFiles, ast.VarsDiags, error) {

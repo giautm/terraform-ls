@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 )
 
 type ModFilename string
@@ -20,7 +21,7 @@ func (mf ModFilename) IsJSON() bool {
 }
 
 func (mf ModFilename) IsIgnored() bool {
-	return IsIgnoredFile(string(mf))
+	return globalAst.IsIgnoredFile(string(mf))
 }
 
 func IsModuleFilename(name string) bool {
@@ -98,7 +99,7 @@ func (md ModDiags) Count() int {
 	return count
 }
 
-type SourceModDiags map[DiagnosticSource]ModDiags
+type SourceModDiags map[globalAst.DiagnosticSource]ModDiags
 
 func (smd SourceModDiags) Count() int {
 	count := 0

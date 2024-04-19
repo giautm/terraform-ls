@@ -7,7 +7,8 @@ import (
 	"github.com/hashicorp/hcl-lang/reference"
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/ast"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
@@ -41,7 +42,7 @@ type ModuleRecord struct {
 	MetaState op.OpState
 
 	ModuleDiagnostics      ast.SourceModDiags
-	ModuleDiagnosticsState ast.DiagnosticSourceState
+	ModuleDiagnosticsState globalAst.DiagnosticSourceState
 }
 
 func (m *ModuleRecord) Copy() *ModuleRecord {
@@ -108,11 +109,11 @@ func newModule(modPath string) *ModuleRecord {
 		PreloadEmbeddedSchemaState: op.OpStateUnknown,
 		RefTargetsState:            op.OpStateUnknown,
 		MetaState:                  op.OpStateUnknown,
-		ModuleDiagnosticsState: ast.DiagnosticSourceState{
-			ast.HCLParsingSource:          op.OpStateUnknown,
-			ast.SchemaValidationSource:    op.OpStateUnknown,
-			ast.ReferenceValidationSource: op.OpStateUnknown,
-			ast.TerraformValidateSource:   op.OpStateUnknown,
+		ModuleDiagnosticsState: globalAst.DiagnosticSourceState{
+			globalAst.HCLParsingSource:          op.OpStateUnknown,
+			globalAst.SchemaValidationSource:    op.OpStateUnknown,
+			globalAst.ReferenceValidationSource: op.OpStateUnknown,
+			globalAst.TerraformValidateSource:   op.OpStateUnknown,
 		},
 	}
 }

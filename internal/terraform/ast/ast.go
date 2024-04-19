@@ -43,10 +43,6 @@ func RecordTypeFromLanguageID(languageID string) RecordType {
 	}
 }
 
-func IsSupportedFilename(name string) bool {
-	return IsModuleFilename(name) || IsVarsFilename(name)
-}
-
 // isIgnoredFile returns true if the given filename (which must not have a
 // directory path ahead of it) should be ignored as e.g. an editor swap file.
 // See https://github.com/hashicorp/terraform/blob/d35bc05/internal/configs/parser_config_dir.go#L107

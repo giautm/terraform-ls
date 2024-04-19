@@ -12,9 +12,10 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl-lang/reference"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/ast"
 	"github.com/hashicorp/terraform-ls/internal/state"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 	tfaddr "github.com/hashicorp/terraform-registry-address"
 	tfmod "github.com/hashicorp/terraform-schema/module"
@@ -474,7 +475,7 @@ func (s *ModuleStore) UpdateMetadata(path string, meta *tfmod.Meta, mErr error) 
 	return nil
 }
 
-func (s *ModuleStore) UpdateModuleDiagnostics(path string, source ast.DiagnosticSource, diags ast.ModDiags) error {
+func (s *ModuleStore) UpdateModuleDiagnostics(path string, source globalAst.DiagnosticSource, diags ast.ModDiags) error {
 	txn := s.db.Txn(true)
 	txn.Defer(func() {
 		s.SetModuleDiagnosticsState(path, source, op.OpStateLoaded)
@@ -506,7 +507,7 @@ func (s *ModuleStore) UpdateModuleDiagnostics(path string, source ast.Diagnostic
 	return nil
 }
 
-func (s *ModuleStore) SetModuleDiagnosticsState(path string, source ast.DiagnosticSource, state op.OpState) error {
+func (s *ModuleStore) SetModuleDiagnosticsState(path string, source globalAst.DiagnosticSource, state op.OpState) error {
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 

@@ -13,11 +13,12 @@ import (
 	lsctx "github.com/hashicorp/terraform-ls/internal/context"
 	idecoder "github.com/hashicorp/terraform-ls/internal/decoder"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/flavors/variables/ast"
 	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/variables/decoder"
 	"github.com/hashicorp/terraform-ls/internal/flavors/variables/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
 	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
@@ -34,11 +35,11 @@ func SchemaVariablesValidation(ctx context.Context, varStore *state.VariableStor
 	}
 
 	// Avoid validation if it is already in progress or already finished
-	if mod.VarsDiagnosticsState[ast.SchemaValidationSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
+	if mod.VarsDiagnosticsState[globalAst.SchemaValidationSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
 		return job.StateNotChangedErr{Dir: document.DirHandleFromPath(modPath)}
 	}
 
-	err = varStore.SetVarsDiagnosticsState(modPath, ast.SchemaValidationSource, op.OpStateLoading)
+	err = varStore.SetVarsDiagnosticsState(modPath, globalAst.SchemaValidationSource, op.OpStateLoading)
 	if err != nil {
 		return err
 	}
@@ -64,13 +65,13 @@ func SchemaVariablesValidation(ctx context.Context, varStore *state.VariableStor
 		var fileDiags hcl.Diagnostics
 		fileDiags, rErr = moduleDecoder.ValidateFile(ctx, filename)
 
-		varsDiags, ok := mod.VarsDiagnostics[ast.SchemaValidationSource]
+		varsDiags, ok := mod.VarsDiagnostics[globalAst.SchemaValidationSource]
 		if !ok {
 			varsDiags = make(ast.VarsDiags)
 		}
 		varsDiags[ast.VarsFilename(filename)] = fileDiags
 
-		sErr := varStore.UpdateVarsDiagnostics(modPath, ast.SchemaValidationSource, varsDiags)
+		sErr := varStore.UpdateVarsDiagnostics(modPath, globalAst.SchemaValidationSource, varsDiags)
 		if sErr != nil {
 			return sErr
 		}
@@ -79,7 +80,7 @@ func SchemaVariablesValidation(ctx context.Context, varStore *state.VariableStor
 		var diags lang.DiagnosticsMap
 		diags, rErr = moduleDecoder.Validate(ctx)
 
-		sErr := varStore.UpdateVarsDiagnostics(modPath, ast.SchemaValidationSource, ast.VarsDiagsFromMap(diags))
+		sErr := varStore.UpdateVarsDiagnostics(modPath, globalAst.SchemaValidationSource, ast.VarsDiagsFromMap(diags))
 		if sErr != nil {
 			return sErr
 		}

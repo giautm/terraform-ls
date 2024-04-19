@@ -6,7 +6,8 @@ package state
 import (
 	"github.com/hashicorp/hcl-lang/reference"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	"github.com/hashicorp/terraform-ls/internal/flavors/variables/ast"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
@@ -23,7 +24,7 @@ type VariableRecord struct {
 	VarsParsingErr  error
 
 	VarsDiagnostics      ast.SourceVarsDiags
-	VarsDiagnosticsState ast.DiagnosticSourceState
+	VarsDiagnosticsState globalAst.DiagnosticSourceState
 }
 
 func (v *VariableRecord) Copy() *VariableRecord {
@@ -73,11 +74,11 @@ func (v *VariableRecord) Path() string {
 func newVariableRecord(modPath string) *VariableRecord {
 	return &VariableRecord{
 		path: modPath,
-		VarsDiagnosticsState: ast.DiagnosticSourceState{
-			ast.HCLParsingSource:          op.OpStateUnknown,
-			ast.SchemaValidationSource:    op.OpStateUnknown,
-			ast.ReferenceValidationSource: op.OpStateUnknown,
-			ast.TerraformValidateSource:   op.OpStateUnknown,
+		VarsDiagnosticsState: globalAst.DiagnosticSourceState{
+			globalAst.HCLParsingSource:          op.OpStateUnknown,
+			globalAst.SchemaValidationSource:    op.OpStateUnknown,
+			globalAst.ReferenceValidationSource: op.OpStateUnknown,
+			globalAst.TerraformValidateSource:   op.OpStateUnknown,
 		},
 	}
 }

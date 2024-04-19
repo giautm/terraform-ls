@@ -4,38 +4,18 @@
 package eventbus
 
 import (
-	"context"
 	"log"
 	"sync"
 )
 
 const ChannelSize = 10
 
-type DidOpenEvent struct {
-	Context context.Context
-
-	Path       string
-	LanguageID string
-
-	// IncludeSubmodules bool
-}
-
-type DidChangeEvent struct {
-	Context context.Context
-
-	Path       string
-	LanguageID string
-
-	// IncludeSubmodules bool
-}
-
 type EventBus struct {
 	logger *log.Logger
 
 	didOpenTopic   *Topic[DidOpenEvent]
 	didChangeTopic *Topic[DidChangeEvent]
-	// documentCloseTopic *Topic[DocumentCloseEvent]
-	// tooltipOpen        *Topic[TooltipOpenEvent]
+	discoverTopic  *Topic[DiscoverEvent]
 }
 
 func NewEventBus(log *log.Logger) *EventBus {
@@ -43,27 +23,8 @@ func NewEventBus(log *log.Logger) *EventBus {
 		logger:         log,
 		didOpenTopic:   NewTopic[DidOpenEvent](),
 		didChangeTopic: NewTopic[DidChangeEvent](),
+		discoverTopic:  NewTopic[DiscoverEvent](),
 	}
-}
-
-func (n *EventBus) OnDidOpen(identifier string) <-chan DidOpenEvent {
-	n.logger.Printf("bus: %q subscribed to OnDidOpen", identifier)
-	return n.didOpenTopic.Subscribe()
-}
-
-func (n *EventBus) DidOpen(e DidOpenEvent) {
-	n.logger.Printf("bus: -> DidOpen %s", e.Path)
-	n.didOpenTopic.Publish(e)
-}
-
-func (n *EventBus) OnDidChange(identifier string) <-chan DidChangeEvent {
-	n.logger.Printf("bus: %q subscribed to OnDidChange", identifier)
-	return n.didChangeTopic.Subscribe()
-}
-
-func (n *EventBus) DidChange(e DidChangeEvent) {
-	n.logger.Printf("bus: -> DidChange %s", e.Path)
-	n.didChangeTopic.Publish(e)
 }
 
 // Topic represents a generic subscription topic

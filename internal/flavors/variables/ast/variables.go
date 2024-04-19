@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 )
 
 type VarsFilename string
@@ -104,7 +105,7 @@ func (vd VarsDiags) Count() int {
 	return count
 }
 
-type SourceVarsDiags map[DiagnosticSource]VarsDiags
+type SourceVarsDiags map[globalAst.DiagnosticSource]VarsDiags
 
 func (svd SourceVarsDiags) Count() int {
 	count := 0

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/ast"
 )
 
 func ParseModuleFiles(fs FS, modPath string) (ast.ModFiles, ast.ModDiags, error) {

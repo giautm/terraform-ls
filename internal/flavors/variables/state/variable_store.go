@@ -8,8 +8,9 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/hcl-lang/reference"
+	"github.com/hashicorp/terraform-ls/internal/flavors/variables/ast"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
@@ -193,7 +194,7 @@ func (s *VariableStore) UpdateParsedVarsFiles(path string, vFiles ast.VarsFiles,
 	return nil
 }
 
-func (s *VariableStore) UpdateVarsDiagnostics(path string, source ast.DiagnosticSource, diags ast.VarsDiags) error {
+func (s *VariableStore) UpdateVarsDiagnostics(path string, source globalAst.DiagnosticSource, diags ast.VarsDiags) error {
 	txn := s.db.Txn(true)
 	txn.Defer(func() {
 		s.SetVarsDiagnosticsState(path, source, op.OpStateLoaded)
@@ -226,7 +227,7 @@ func (s *VariableStore) UpdateVarsDiagnostics(path string, source ast.Diagnostic
 	return nil
 }
 
-func (s *VariableStore) SetVarsDiagnosticsState(path string, source ast.DiagnosticSource, state op.OpState) error {
+func (s *VariableStore) SetVarsDiagnosticsState(path string, source globalAst.DiagnosticSource, state op.OpState) error {
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 

@@ -535,17 +535,17 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 		svc.stateStore.JobStore, svc.tfExecFactory, svc.registryClient)
 	svc.indexer.SetLogger(svc.logger)
 
+	svc.eventBus = eventbus.NewEventBus(svc.logger)
+
 	closedPa := state.NewPathAwaiter(svc.stateStore.WalkerPaths, false)
-	svc.closedDirWalker = walker.NewWalker(svc.fs, closedPa, svc.recordStores, nil)
+	svc.closedDirWalker = walker.NewWalker(svc.fs, closedPa, svc.recordStores, svc.eventBus)
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.closedDirWalker.SetLogger(svc.logger)
 
 	opendPa := state.NewPathAwaiter(svc.stateStore.WalkerPaths, true)
-	svc.openDirWalker = walker.NewWalker(svc.fs, opendPa, svc.recordStores, nil)
+	svc.openDirWalker = walker.NewWalker(svc.fs, opendPa, svc.recordStores, svc.eventBus)
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.openDirWalker.SetLogger(svc.logger)
-
-	svc.eventBus = eventbus.NewEventBus(svc.logger)
 
 	moduleFlavor, err := fmodules.NewModulesFlavor(svc.logger, svc.eventBus,
 		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
@@ -579,8 +579,8 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 
 	svc.decoder = decoder.NewDecoder(&idecoder.GlobalPathReader{
 		PathReaderMap: idecoder.PathReaderMap{
-			"terraform":      moduleFlavor,
-			"terraform-vars": variablesFlavor,
+			"terraform":        moduleFlavor,
+			"terraform-vars":   variablesFlavor,
 			"terraform-stacks": stacksFlavor,
 			// "terraform-deploy": stacksFlavor,
 		},

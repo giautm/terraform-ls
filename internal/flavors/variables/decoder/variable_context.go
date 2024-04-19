@@ -7,8 +7,8 @@ import (
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/reference"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/terraform-ls/internal/flavors/variables/ast"
 	"github.com/hashicorp/terraform-ls/internal/flavors/variables/state"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	tfmod "github.com/hashicorp/terraform-schema/module"
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )

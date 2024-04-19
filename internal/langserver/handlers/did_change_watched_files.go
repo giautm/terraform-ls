@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/protocol"
 	lsp "github.com/hashicorp/terraform-ls/internal/protocol"
 	"github.com/hashicorp/terraform-ls/internal/state"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	"github.com/hashicorp/terraform-ls/internal/terraform/datadir"
 	"github.com/hashicorp/terraform-ls/internal/uri"
 )
@@ -261,14 +260,15 @@ func modHandleFromRawOsPath(ctx context.Context, rawPath string) (*parsedModuleH
 		}, nil
 	}
 
-	if !ast.IsModuleFilename(fi.Name()) && !ast.IsVarsFilename(fi.Name()) {
-		jrpc2.ServerFromContext(ctx).Notify(ctx, "window/showMessage", &lsp.ShowMessageParams{
-			Type: lsp.Warning,
-			Message: fmt.Sprintf("Unable to update %q: filetype not supported. "+
-				"This is likely a bug which should be reported.", rawPath),
-		})
-		return nil, ErrorSkip
-	}
+	// TODO
+	// if !ast.IsModuleFilename(fi.Name()) && !ast.IsVarsFilename(fi.Name()) {
+	// 	jrpc2.ServerFromContext(ctx).Notify(ctx, "window/showMessage", &lsp.ShowMessageParams{
+	// 		Type: lsp.Warning,
+	// 		Message: fmt.Sprintf("Unable to update %q: filetype not supported. "+
+	// 			"This is likely a bug which should be reported.", rawPath),
+	// 	})
+	// 	return nil, ErrorSkip
+	// }
 
 	docHandle := document.HandleFromPath(rawPath)
 	return &parsedModuleHandle{

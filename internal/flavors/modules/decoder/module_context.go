@@ -7,8 +7,8 @@ import (
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/reference"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/ast"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 )
 
 func modulePathContext(mod *state.ModuleRecord, stateReader StateReader) (*decoder.PathContext, error) {

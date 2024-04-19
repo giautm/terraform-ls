@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	"github.com/hashicorp/terraform-ls/internal/job"
 	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	"go.opentelemetry.io/otel"
@@ -45,7 +46,7 @@ type Walker struct {
 	recordStores RecordStores
 
 	logger   *log.Logger
-	walkFunc WalkFunc
+	eventBus *eventbus.EventBus
 
 	Collector *WalkerCollector
 
@@ -54,8 +55,6 @@ type Walker struct {
 	ignoredPaths          map[string]bool
 	ignoredDirectoryNames map[string]bool
 }
-
-type WalkFunc func(ctx context.Context, modHandle document.DirHandle) (job.IDs, error)
 
 type PathStore interface {
 	AwaitNextDir(ctx context.Context) (context.Context, document.DirHandle, error)
@@ -68,14 +67,14 @@ type RecordStores interface {
 
 const tracerName = "github.com/hashicorp/terraform-ls/internal/walker"
 
-func NewWalker(fs fs.ReadDirFS, pathStore PathStore, recordStores RecordStores, walkFunc WalkFunc) *Walker {
+func NewWalker(fs fs.ReadDirFS, pathStore PathStore, recordStores RecordStores, eventBus *eventbus.EventBus) *Walker {
 	return &Walker{
 		fs:                    fs,
 		pathStore:             pathStore,
 		recordStores:          recordStores,
-		walkFunc:              walkFunc,
 		logger:                discardLogger,
 		ignoredDirectoryNames: skipDirNames,
+		eventBus:              eventBus,
 	}
 }
 
@@ -198,11 +197,18 @@ func (w *Walker) walk(ctx context.Context, dir document.DirHandle) error {
 		// the entries it was able to read before the error, along with the error.
 	}
 
-	typeIndexed := map[string]bool{
-		"root":     false,
-		"module":   false,
-		"variable": false,
+	files := make([]string, 0, len(dirEntries))
+	for _, dirEntry := range dirEntries {
+		if dirEntry.IsDir() {
+			continue
+		}
+		files = append(files, dirEntry.Name())
 	}
+
+	w.eventBus.Discover(eventbus.DiscoverEvent{
+		Path:  dir.Path(),
+		Files: files,
+	})
 
 	for _, dirEntry := range dirEntries {
 		select {
@@ -214,45 +220,6 @@ func (w *Walker) walk(ctx context.Context, dir document.DirHandle) error {
 
 		if w.isSkippableDir(dirEntry.Name()) {
 			w.logger.Printf("skipping ignored dir name: %s", dirEntry.Name())
-			continue
-		}
-
-		if !typeIndexed["module"] && ast.IsModuleFilename(dirEntry.Name()) && !ast.IsIgnoredFile(dirEntry.Name()) {
-			typeIndexed["module"] = true
-			w.logger.Printf("found module file in %s", dir)
-
-			err := w.recordStores.AddIfNotExists(dir.Path(), ast.RecordTypeModule)
-			if err != nil {
-				return err
-			}
-
-			// Let's not schedule any jobs for now
-			// ids, err := w.walkFunc(ctx, dir)
-			// if err != nil {
-			// 	w.collectError(fmt.Errorf("walkFunc: %w", err))
-			// }
-			// w.collectJobIds(ids)
-			continue
-		}
-		if !typeIndexed["variable"] && ast.IsVarsFilename(dirEntry.Name()) && !ast.IsIgnoredFile(dirEntry.Name()) {
-			typeIndexed["variable"] = true
-			w.logger.Printf("found variable file in %s", dir)
-
-			err := w.recordStores.AddIfNotExists(dir.Path(), ast.RecordTypeVariable)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-		// TODO! extract name detection to a separate function
-		if !typeIndexed["root"] && (dirEntry.Name() == ".terraform.lock.hcl" || dirEntry.Name() == ".terraform") {
-			typeIndexed["root"] = true
-			w.logger.Printf("found root module in %s", dir)
-
-			err := w.recordStores.AddIfNotExists(dir.Path(), ast.RecordTypeRoot)
-			if err != nil {
-				return err
-			}
 			continue
 		}
 

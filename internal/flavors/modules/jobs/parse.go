@@ -9,10 +9,11 @@ import (
 
 	lsctx "github.com/hashicorp/terraform-ls/internal/context"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/ast"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
 	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 	"github.com/hashicorp/terraform-ls/internal/terraform/parser"
 	"github.com/hashicorp/terraform-ls/internal/uri"
@@ -29,7 +30,7 @@ func ParseModuleConfiguration(ctx context.Context, fs ReadOnlyFS, modStore *stat
 	// TODO: Avoid parsing if the content matches existing AST
 
 	// Avoid parsing if it is already in progress or already known
-	if mod.ModuleDiagnosticsState[ast.HCLParsingSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
+	if mod.ModuleDiagnosticsState[globalAst.HCLParsingSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
 		return job.StateNotChangedErr{Dir: document.DirHandleFromPath(modPath)}
 	}
 
@@ -37,9 +38,9 @@ func ParseModuleConfiguration(ctx context.Context, fs ReadOnlyFS, modStore *stat
 	var diags ast.ModDiags
 	rpcContext := lsctx.DocumentContext(ctx)
 	// Only parse the file that's being changed/opened, unless this is 1st-time parsing
-	if mod.ModuleDiagnosticsState[ast.HCLParsingSource] == op.OpStateLoaded && rpcContext.IsDidChangeRequest() && rpcContext.LanguageID == ilsp.Terraform.String() {
+	if mod.ModuleDiagnosticsState[globalAst.HCLParsingSource] == op.OpStateLoaded && rpcContext.IsDidChangeRequest() && rpcContext.LanguageID == ilsp.Terraform.String() {
 		// the file has already been parsed, so only examine this file and not the whole module
-		err = modStore.SetModuleDiagnosticsState(modPath, ast.HCLParsingSource, op.OpStateLoading)
+		err = modStore.SetModuleDiagnosticsState(modPath, globalAst.HCLParsingSource, op.OpStateLoading)
 		if err != nil {
 			return err
 		}
@@ -58,7 +59,7 @@ func ParseModuleConfiguration(ctx context.Context, fs ReadOnlyFS, modStore *stat
 		existingFiles[ast.ModFilename(fileName)] = f
 		files = existingFiles
 
-		existingDiags, ok := mod.ModuleDiagnostics[ast.HCLParsingSource]
+		existingDiags, ok := mod.ModuleDiagnostics[globalAst.HCLParsingSource]
 		if !ok {
 			existingDiags = make(ast.ModDiags)
 		} else {
@@ -68,7 +69,7 @@ func ParseModuleConfiguration(ctx context.Context, fs ReadOnlyFS, modStore *stat
 		diags = existingDiags
 	} else {
 		// this is the first time file is opened so parse the whole module
-		err = modStore.SetModuleDiagnosticsState(modPath, ast.HCLParsingSource, op.OpStateLoading)
+		err = modStore.SetModuleDiagnosticsState(modPath, globalAst.HCLParsingSource, op.OpStateLoading)
 		if err != nil {
 			return err
 		}
@@ -85,7 +86,7 @@ func ParseModuleConfiguration(ctx context.Context, fs ReadOnlyFS, modStore *stat
 		return sErr
 	}
 
-	sErr = modStore.UpdateModuleDiagnostics(modPath, ast.HCLParsingSource, diags)
+	sErr = modStore.UpdateModuleDiagnostics(modPath, globalAst.HCLParsingSource, diags)
 	if sErr != nil {
 		return sErr
 	}

@@ -13,13 +13,14 @@ import (
 	lsctx "github.com/hashicorp/terraform-ls/internal/context"
 	idecoder "github.com/hashicorp/terraform-ls/internal/decoder"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/ast"
 	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/modules/decoder"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/decoder/validations"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
 	"github.com/hashicorp/terraform-ls/internal/langserver/diagnostics"
 	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	"github.com/hashicorp/terraform-ls/internal/terraform/module"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
@@ -38,11 +39,11 @@ func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, mo
 	}
 
 	// Avoid validation if it is already in progress or already finished
-	if mod.ModuleDiagnosticsState[ast.SchemaValidationSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
+	if mod.ModuleDiagnosticsState[globalAst.SchemaValidationSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
 		return job.StateNotChangedErr{Dir: document.DirHandleFromPath(modPath)}
 	}
 
-	err = modStore.SetModuleDiagnosticsState(modPath, ast.SchemaValidationSource, op.OpStateLoading)
+	err = modStore.SetModuleDiagnosticsState(modPath, globalAst.SchemaValidationSource, op.OpStateLoading)
 	if err != nil {
 		return err
 	}
@@ -68,13 +69,13 @@ func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, mo
 		var fileDiags hcl.Diagnostics
 		fileDiags, rErr = moduleDecoder.ValidateFile(ctx, filename)
 
-		modDiags, ok := mod.ModuleDiagnostics[ast.SchemaValidationSource]
+		modDiags, ok := mod.ModuleDiagnostics[globalAst.SchemaValidationSource]
 		if !ok {
 			modDiags = make(ast.ModDiags)
 		}
 		modDiags[ast.ModFilename(filename)] = fileDiags
 
-		sErr := modStore.UpdateModuleDiagnostics(modPath, ast.SchemaValidationSource, modDiags)
+		sErr := modStore.UpdateModuleDiagnostics(modPath, globalAst.SchemaValidationSource, modDiags)
 		if sErr != nil {
 			return sErr
 		}
@@ -83,7 +84,7 @@ func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, mo
 		var diags lang.DiagnosticsMap
 		diags, rErr = moduleDecoder.Validate(ctx)
 
-		sErr := modStore.UpdateModuleDiagnostics(modPath, ast.SchemaValidationSource, ast.ModDiagsFromMap(diags))
+		sErr := modStore.UpdateModuleDiagnostics(modPath, globalAst.SchemaValidationSource, ast.ModDiagsFromMap(diags))
 		if sErr != nil {
 			return sErr
 		}
@@ -104,11 +105,11 @@ func ReferenceValidation(ctx context.Context, modStore *state.ModuleStore, modPa
 	}
 
 	// Avoid validation if it is already in progress or already finished
-	if mod.ModuleDiagnosticsState[ast.ReferenceValidationSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
+	if mod.ModuleDiagnosticsState[globalAst.ReferenceValidationSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
 		return job.StateNotChangedErr{Dir: document.DirHandleFromPath(modPath)}
 	}
 
-	err = modStore.SetModuleDiagnosticsState(modPath, ast.ReferenceValidationSource, op.OpStateLoading)
+	err = modStore.SetModuleDiagnosticsState(modPath, globalAst.ReferenceValidationSource, op.OpStateLoading)
 	if err != nil {
 		return err
 	}
@@ -125,7 +126,7 @@ func ReferenceValidation(ctx context.Context, modStore *state.ModuleStore, modPa
 	}
 
 	diags := validations.UnreferencedOrigins(ctx, pathCtx)
-	return modStore.UpdateModuleDiagnostics(modPath, ast.ReferenceValidationSource, ast.ModDiagsFromMap(diags))
+	return modStore.UpdateModuleDiagnostics(modPath, globalAst.ReferenceValidationSource, ast.ModDiagsFromMap(diags))
 }
 
 // TerraformValidate uses Terraform CLI to run validate subcommand
@@ -138,11 +139,11 @@ func TerraformValidate(ctx context.Context, modStore *state.ModuleStore, modPath
 	}
 
 	// Avoid validation if it is already in progress or already finished
-	if mod.ModuleDiagnosticsState[ast.TerraformValidateSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
+	if mod.ModuleDiagnosticsState[globalAst.TerraformValidateSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
 		return job.StateNotChangedErr{Dir: document.DirHandleFromPath(modPath)}
 	}
 
-	err = modStore.SetModuleDiagnosticsState(modPath, ast.TerraformValidateSource, op.OpStateLoading)
+	err = modStore.SetModuleDiagnosticsState(modPath, globalAst.TerraformValidateSource, op.OpStateLoading)
 	if err != nil {
 		return err
 	}
@@ -158,5 +159,5 @@ func TerraformValidate(ctx context.Context, modStore *state.ModuleStore, modPath
 	}
 	validateDiags := diagnostics.HCLDiagsFromJSON(jsonDiags)
 
-	return modStore.UpdateModuleDiagnostics(modPath, ast.TerraformValidateSource, ast.ModDiagsFromMap(validateDiags))
+	return modStore.UpdateModuleDiagnostics(modPath, globalAst.TerraformValidateSource, ast.ModDiagsFromMap(validateDiags))
 }

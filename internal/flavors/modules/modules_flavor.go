@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
+	"github.com/hashicorp/terraform-ls/internal/flavors/modules/ast"
 	fdecoder "github.com/hashicorp/terraform-ls/internal/flavors/modules/decoder"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/jobs"
 	"github.com/hashicorp/terraform-ls/internal/flavors/modules/state"
@@ -22,6 +23,7 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/registry"
 	"github.com/hashicorp/terraform-ls/internal/schemas"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 	tfmodule "github.com/hashicorp/terraform-schema/module"
 )
@@ -68,14 +70,20 @@ func (f *ModulesFlavor) Run(ctx context.Context) {
 
 	didOpen := f.eventbus.OnDidOpen("flavor.modules")
 	didChange := f.eventbus.OnDidChange("flavor.modules")
+	discover := f.eventbus.OnDiscover("flavor.modules")
 	go func() {
 		for {
 			select {
-			case open := <-didOpen:
-				f.DidOpen(open.Context, open.Path, open.LanguageID)
+			case didOpen := <-didOpen:
+				// TODO collect errors
+				f.DidOpen(didOpen.Context, didOpen.Path, didOpen.LanguageID)
 			case didChange := <-didChange:
 				// TODO move into own handler
+				// TODO collect errors
 				f.DidOpen(didChange.Context, didChange.Path, didChange.LanguageID)
+			case discover := <-discover:
+				// TODO collect errors
+				f.Discover(discover.Path, discover.Files)
 
 			case <-ctx.Done():
 				return
@@ -84,10 +92,31 @@ func (f *ModulesFlavor) Run(ctx context.Context) {
 	}()
 }
 
+func (f *ModulesFlavor) Discover(path string, files []string) error {
+	for _, file := range files {
+		if ast.IsModuleFilename(file) && !globalAst.IsIgnoredFile(file) {
+			f.logger.Printf("discovered module file in %s", path)
+
+			err := f.store.AddIfNotExists(path)
+			if err != nil {
+				return err
+			}
+
+			break
+		}
+	}
+
+	return nil
+}
+
 func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID string) (job.IDs, error) {
 	ids := make(job.IDs, 0)
 	f.logger.Printf("did open %q %q", path, languageID)
 
+	// We need to decide if the path is relevant to us. It can be relevant because
+	// a) the walker discovered module files and created a state entry for them
+	// b) the opened file is a module file
+	//
 	// Add to state if language ID matches
 	if languageID == "terraform" {
 		err := f.store.AddIfNotExists(path)
