@@ -20,7 +20,7 @@ func (idx *Indexer) ModuleManifestChanged(ctx context.Context, modHandle documen
 	modManifestId, err := idx.jobStore.EnqueueJob(ctx, job.Job{
 		Dir: modHandle,
 		Func: func(ctx context.Context) error {
-			return module.ParseModuleManifest(ctx, idx.fs, idx.recordStores.Roots, modHandle.Path())
+			return module.ParseModuleManifest(ctx, idx.fs, idx.rootStore, modHandle.Path())
 		},
 		Type:        op.OpTypeParseModuleManifest.String(),
 		IgnoreState: true,
@@ -44,7 +44,7 @@ func (idx *Indexer) PluginLockChanged(ctx context.Context, modHandle document.Di
 	pSchemaVerId, err := idx.jobStore.EnqueueJob(ctx, job.Job{
 		Dir: modHandle,
 		Func: func(ctx context.Context) error {
-			return module.ParseProviderVersions(ctx, idx.fs, idx.recordStores.Roots, modHandle.Path())
+			return module.ParseProviderVersions(ctx, idx.fs, idx.rootStore, modHandle.Path())
 		},
 		IgnoreState: true,
 		Type:        op.OpTypeParseProviderVersions.String(),

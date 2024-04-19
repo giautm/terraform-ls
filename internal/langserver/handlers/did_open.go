@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	lsp "github.com/hashicorp/terraform-ls/internal/protocol"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	"github.com/hashicorp/terraform-ls/internal/uri"
 )
 
@@ -43,20 +42,6 @@ func (svc *service) TextDocumentDidOpen(ctx context.Context, params lsp.DidOpenT
 		Path:       dh.Dir.Path(),
 		LanguageID: params.TextDocument.LanguageID,
 	})
-
-	recordType := ast.RecordTypeFromLanguageID(params.TextDocument.LanguageID)
-	if recordType == ast.RecordTypeStacks {
-		// TODO: stacks does not have a recordstore and we're moving away from that, so this should go away
-		svc.logger.Printf("opened stack %s: %s", recordType, dh.Dir.Path())
-		return nil
-	}
-
-	err = svc.recordStores.AddIfNotExists(dh.Dir.Path(), recordType)
-	if err != nil {
-		return err
-	}
-
-	svc.logger.Printf("opened %s: %s", recordType, dh.Dir.Path())
 
 	modHandle := document.DirHandleFromPath(dh.Dir.Path())
 	if svc.singleFileMode {

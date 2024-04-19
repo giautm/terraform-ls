@@ -14,7 +14,7 @@ import (
 )
 
 func (idx *Indexer) Initialize(ctx context.Context, modHandle document.DirHandle) (job.IDs, error) {
-	err := idx.recordStores.TerraformVersions.AddIfNotExists()
+	err := idx.terraformVersionStore.AddIfNotExists()
 	if err != nil {
 		return nil, err
 	}
@@ -23,7 +23,7 @@ func (idx *Indexer) Initialize(ctx context.Context, modHandle document.DirHandle
 		Dir: modHandle,
 		Func: func(ctx context.Context) error {
 			ctx = exec.WithExecutorFactory(ctx, idx.tfExecFactory)
-			return module.GetInstalledTerraformVersion(ctx, idx.recordStores.TerraformVersions, modHandle.Path())
+			return module.GetInstalledTerraformVersion(ctx, idx.terraformVersionStore, modHandle.Path())
 		},
 		Type: op.OpTypeGetInstalledTerraformVersion.String(),
 	})

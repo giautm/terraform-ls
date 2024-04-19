@@ -38,9 +38,8 @@ var (
 )
 
 type Walker struct {
-	fs           fs.ReadDirFS
-	pathStore    PathStore
-	recordStores RecordStores
+	fs        fs.ReadDirFS
+	pathStore PathStore
 
 	logger   *log.Logger
 	eventBus *eventbus.EventBus
@@ -64,11 +63,10 @@ type RecordStores interface {
 
 const tracerName = "github.com/hashicorp/terraform-ls/internal/walker"
 
-func NewWalker(fs fs.ReadDirFS, pathStore PathStore, recordStores RecordStores, eventBus *eventbus.EventBus) *Walker {
+func NewWalker(fs fs.ReadDirFS, pathStore PathStore, eventBus *eventbus.EventBus) *Walker {
 	return &Walker{
 		fs:                    fs,
 		pathStore:             pathStore,
-		recordStores:          recordStores,
 		logger:                discardLogger,
 		ignoredDirectoryNames: skipDirNames,
 		eventBus:              eventBus,

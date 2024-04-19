@@ -6,12 +6,11 @@ package notifier
 import (
 	"context"
 	"errors"
-	"io/ioutil"
+	"io"
 	"log"
 	"time"
 
 	"github.com/hashicorp/terraform-ls/internal/document"
-	"github.com/hashicorp/terraform-ls/internal/state"
 )
 
 type moduleCtxKey struct{}
@@ -23,9 +22,12 @@ type Notifier struct {
 	logger   *log.Logger
 }
 
+// TODO
+type ModuleRecord struct{}
+
 type ModuleStore interface {
 	AwaitNextChangeBatch(ctx context.Context) (ModuleChangeBatch, error)
-	ModuleByPath(path string) (*state.ModuleRecord, error)
+	ModuleByPath(path string) (*ModuleRecord, error)
 }
 
 // TODO
@@ -94,12 +96,12 @@ func (n *Notifier) notify(ctx context.Context) error {
 	return nil
 }
 
-func withModule(ctx context.Context, mod *state.ModuleRecord) context.Context {
+func withModule(ctx context.Context, mod *ModuleRecord) context.Context {
 	return context.WithValue(ctx, moduleCtxKey{}, mod)
 }
 
-func ModuleFromContext(ctx context.Context) (*state.ModuleRecord, error) {
-	mod, ok := ctx.Value(moduleCtxKey{}).(*state.ModuleRecord)
+func ModuleFromContext(ctx context.Context) (*ModuleRecord, error) {
+	mod, ok := ctx.Value(moduleCtxKey{}).(*ModuleRecord)
 	if !ok {
 		return nil, errors.New("module data not found")
 	}
@@ -120,4 +122,4 @@ func ModuleIsOpen(ctx context.Context) (bool, error) {
 	return isOpen, nil
 }
 
-var defaultLogger = log.New(ioutil.Discard, "", 0)
+var defaultLogger = log.New(io.Discard, "", 0)

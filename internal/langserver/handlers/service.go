@@ -67,7 +67,6 @@ type service struct {
 	openDirWalker   *walker.Walker
 
 	fs             *filesystem.Filesystem
-	recordStores   *state.RecordStores
 	tfDiscoFunc    discovery.DiscoveryFunc
 	tfExecFactory  exec.ExecutorFactory
 	tfExecOpts     *exec.ExecutorOpts
@@ -524,26 +523,22 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	// svc.notifier.SetLogger(svc.logger)
 	// svc.notifier.Start(svc.sessCtx)
 
-	svc.recordStores = state.NewRecordStores(svc.stateStore.Roots,
-		svc.stateStore.RegistryModules, svc.stateStore.ProviderSchemas,
-		svc.stateStore.TerraformVersions)
-
 	svc.fs = filesystem.NewFilesystem(svc.stateStore.DocumentStore)
 	svc.fs.SetLogger(svc.logger)
 
-	svc.indexer = indexer.NewIndexer(svc.fs, svc.recordStores,
-		svc.stateStore.JobStore, svc.tfExecFactory, svc.registryClient)
+	svc.indexer = indexer.NewIndexer(svc.fs, svc.stateStore.JobStore,
+		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.tfExecFactory, svc.registryClient)
 	svc.indexer.SetLogger(svc.logger)
 
 	svc.eventBus = eventbus.NewEventBus(svc.logger)
 
 	closedPa := state.NewPathAwaiter(svc.stateStore.WalkerPaths, false)
-	svc.closedDirWalker = walker.NewWalker(svc.fs, closedPa, svc.recordStores, svc.eventBus)
+	svc.closedDirWalker = walker.NewWalker(svc.fs, closedPa, svc.eventBus)
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.closedDirWalker.SetLogger(svc.logger)
 
 	opendPa := state.NewPathAwaiter(svc.stateStore.WalkerPaths, true)
-	svc.openDirWalker = walker.NewWalker(svc.fs, opendPa, svc.recordStores, svc.eventBus)
+	svc.openDirWalker = walker.NewWalker(svc.fs, opendPa, svc.eventBus)
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.openDirWalker.SetLogger(svc.logger)
 

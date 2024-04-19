@@ -4,7 +4,7 @@
 package indexer
 
 import (
-	"io/ioutil"
+	"io"
 	"log"
 
 	"github.com/hashicorp/terraform-ls/internal/job"
@@ -14,26 +14,27 @@ import (
 )
 
 type Indexer struct {
-	logger         *log.Logger
-	fs             ReadOnlyFS
-	recordStores   *state.RecordStores
-	jobStore       job.JobStore
-	tfExecFactory  exec.ExecutorFactory
-	registryClient registry.Client
+	logger                *log.Logger
+	rootStore             *state.RootStore
+	terraformVersionStore *state.TerraformVersionStore
+	fs                    ReadOnlyFS
+	jobStore              job.JobStore
+	tfExecFactory         exec.ExecutorFactory
+	registryClient        registry.Client
 }
 
-func NewIndexer(fs ReadOnlyFS, recordStores *state.RecordStores, jobStore job.JobStore,
-	tfExec exec.ExecutorFactory, registryClient registry.Client) *Indexer {
+func NewIndexer(fs ReadOnlyFS, jobStore job.JobStore, rootStore *state.RootStore, terraformVersionStore *state.TerraformVersionStore, tfExec exec.ExecutorFactory, registryClient registry.Client) *Indexer {
 
-	discardLogger := log.New(ioutil.Discard, "", 0)
+	discardLogger := log.New(io.Discard, "", 0)
 
 	return &Indexer{
-		fs:             fs,
-		recordStores:   recordStores,
-		jobStore:       jobStore,
-		tfExecFactory:  tfExec,
-		registryClient: registryClient,
-		logger:         discardLogger,
+		fs:                    fs,
+		jobStore:              jobStore,
+		rootStore:             rootStore,
+		terraformVersionStore: terraformVersionStore,
+		tfExecFactory:         tfExec,
+		registryClient:        registryClient,
+		logger:                discardLogger,
 	}
 }
 

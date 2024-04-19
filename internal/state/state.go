@@ -4,19 +4,14 @@
 package state
 
 import (
-	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	tfaddr "github.com/hashicorp/terraform-registry-address"
-	tfmod "github.com/hashicorp/terraform-schema/module"
-	"github.com/hashicorp/terraform-schema/registry"
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
@@ -309,138 +304,4 @@ func (s *StateStore) SetLogger(logger *log.Logger) {
 	s.TerraformVersions.logger = logger
 }
 
-var defaultLogger = log.New(ioutil.Discard, "", 0)
-
-type RecordStores struct {
-	ProviderSchemas   *ProviderSchemaStore
-	RegistryModules   *RegistryModuleStore
-	Roots             *RootStore
-	TerraformVersions *TerraformVersionStore
-}
-
-type RecordStore interface {
-	Path() string
-}
-
-func NewRecordStores(roots *RootStore,
-	registryModules *RegistryModuleStore, providerSchemas *ProviderSchemaStore, terraformVersions *TerraformVersionStore) *RecordStores {
-	return &RecordStores{
-		ProviderSchemas:   providerSchemas,
-		RegistryModules:   registryModules,
-		Roots:             roots,
-		TerraformVersions: terraformVersions,
-	}
-}
-
-func (ds *RecordStores) ByPath(path string, recordType ast.RecordType) (RecordStore, error) {
-	if recordType == ast.RecordTypeModule {
-		return nil, nil //ds.Modules.ModuleByPath(path)
-	}
-	if recordType == ast.RecordTypeVariable {
-		return nil, nil //ds.Variables.VariableRecordByPath(path)
-	}
-	if recordType == ast.RecordTypeRoot {
-		return ds.Roots.RootRecordByPath(path)
-	}
-
-	return nil, fmt.Errorf("unknown record type: %q", recordType)
-}
-
-func (ds *RecordStores) Add(path string, recordType ast.RecordType) error {
-	if recordType == ast.RecordTypeModule {
-		return nil //ds.Modules.Add(path)
-	}
-	if recordType == ast.RecordTypeVariable {
-		return nil //ds.Variables.Add(path)
-	}
-	if recordType == ast.RecordTypeRoot {
-		return ds.Roots.Add(path)
-	}
-
-	return fmt.Errorf("unknown record type: %q", recordType)
-}
-
-func (ds *RecordStores) AddIfNotExists(path string, recordType ast.RecordType) error {
-	if recordType == ast.RecordTypeModule {
-		return nil //ds.Modules.AddIfNotExists(path)
-	}
-	if recordType == ast.RecordTypeVariable {
-		return nil //ds.Variables.AddIfNotExists(path)
-	}
-	if recordType == ast.RecordTypeRoot {
-		return ds.Roots.AddIfNotExists(path)
-	}
-
-	return fmt.Errorf("unknown record type: %q", recordType)
-}
-
-func (ds *RecordStores) Remove(path string) error {
-	var errs *multierror.Error
-
-	// err := ds.Modules.Remove(path)
-	// if err != nil {
-	// 	errs = multierror.Append(errs, err)
-	// }
-
-	// err = ds.Variables.Remove(path)
-	// if err != nil {
-	// 	errs = multierror.Append(errs, err)
-	// }
-
-	err := ds.Roots.Remove(path)
-	if err != nil {
-		errs = multierror.Append(errs, err)
-	}
-
-	return errs.ErrorOrNil()
-
-}
-
-func (ds *RecordStores) DeclaredModuleCalls(modPath string) (map[string]tfmod.DeclaredModuleCall, error) {
-	return nil, nil //ds.Modules.DeclaredModuleCalls(modPath)
-}
-
-func (ds *RecordStores) InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error) {
-	return ds.Roots.InstalledModuleCalls(modPath)
-}
-
-func (ds *RecordStores) LocalModuleMeta(modPath string) (*tfmod.Meta, error) {
-	return nil, nil //ds.Modules.LocalModuleMeta(modPath)
-}
-
-func (ds *RecordStores) RegistryModuleMeta(addr tfaddr.Module, cons version.Constraints) (*registry.ModuleData, error) {
-	return ds.RegistryModules.RegistryModuleMeta(addr, cons)
-}
-
-func (ds *RecordStores) ProviderSchema(modPath string, addr tfaddr.Provider, vc version.Constraints) (*tfschema.ProviderSchema, error) {
-	return ds.ProviderSchemas.ProviderSchema(modPath, addr, vc)
-}
-
-func (ds *RecordStores) InstalledTerraformVersion(modPath string) *version.Version {
-	record, err := ds.TerraformVersions.TerraformVersionRecord()
-	if err != nil {
-		return nil
-	}
-
-	return record.TerraformVersion
-}
-
-// TODO
-type ModuleRecord struct{}
-type VariableRecord struct{}
-
-func (ds *RecordStores) ModuleRecordByPath(modPath string) (*ModuleRecord, error) {
-	return nil, nil //ds.Modules.ModuleByPath(modPath)
-}
-
-func (ds *RecordStores) VariableRecordByPath(modPath string) (*VariableRecord, error) {
-	return nil, nil //ds.Variables.VariableRecordByPath(modPath)
-}
-
-func (ds *RecordStores) ListModuleRecords() ([]*ModuleRecord, error) {
-	return nil, nil //ds.Modules.List()
-}
-
-func (ds *RecordStores) ListVariableRecords() ([]*VariableRecord, error) {
-	return nil, nil //ds.Variables.List()
-}
+var defaultLogger = log.New(io.Discard, "", 0)
