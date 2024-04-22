@@ -530,7 +530,8 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.tfExecFactory, svc.registryClient)
 	svc.indexer.SetLogger(svc.logger)
 
-	svc.eventBus = eventbus.NewEventBus(svc.logger)
+	svc.eventBus = eventbus.NewEventBus()
+	svc.eventBus.SetLogger(svc.logger)
 
 	closedPa := state.NewPathAwaiter(svc.stateStore.WalkerPaths, false)
 	svc.closedDirWalker = walker.NewWalker(svc.fs, closedPa, svc.eventBus)
@@ -542,18 +543,20 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.openDirWalker.SetLogger(svc.logger)
 
-	moduleFlavor, err := fmodules.NewModulesFlavor(svc.logger, svc.eventBus,
+	moduleFlavor, err := fmodules.NewModulesFlavor(svc.eventBus,
 		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
 		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.fs)
 	if err != nil {
 		return err
 	}
+	moduleFlavor.SetLogger(svc.logger)
 	moduleFlavor.Run(svc.sessCtx)
 
-	variablesFlavor, err := fvariables.NewVariablesFlavor(svc.logger, svc.eventBus, svc.stateStore.JobStore, svc.fs)
+	variablesFlavor, err := fvariables.NewVariablesFlavor(svc.eventBus, svc.stateStore.JobStore, svc.fs)
 	if err != nil {
 		return err
 	}
+	variablesFlavor.SetLogger(svc.logger)
 	variablesFlavor.Run(svc.sessCtx)
 
 	stacksFlavor, err := fstacks.NewStacksFlavor(
@@ -566,6 +569,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	}
 	stacksFlavor.Run(svc.sessCtx)
 
+	// TODO? check if we still need this
 	svc.flavors = &Flavors{
 		Modules:   moduleFlavor,
 		Variables: variablesFlavor,

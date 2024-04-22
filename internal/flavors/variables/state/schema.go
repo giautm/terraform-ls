@@ -4,6 +4,7 @@
 package state
 
 import (
+	"io"
 	"log"
 
 	"github.com/hashicorp/go-memdb"
@@ -28,15 +29,16 @@ var dbSchema = &memdb.DBSchema{
 	},
 }
 
-func NewVariableStore(logger *log.Logger) (*VariableStore, error) {
+func NewVariableStore() (*VariableStore, error) {
 	db, err := memdb.NewMemDB(dbSchema)
 	if err != nil {
 		return nil, err
 	}
+	discardLogger := log.New(io.Discard, "", 0)
 
 	return &VariableStore{
 		db:        db,
 		tableName: variableTableName,
-		logger:    logger,
+		logger:    discardLogger,
 	}, nil
 }

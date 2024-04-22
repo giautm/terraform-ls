@@ -4,6 +4,7 @@
 package state
 
 import (
+	"io"
 	"log"
 	"time"
 
@@ -57,16 +58,18 @@ var dbSchema = &memdb.DBSchema{
 	},
 }
 
-func NewModuleStore(logger *log.Logger, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore) (*ModuleStore, error) {
+func NewModuleStore(providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore) (*ModuleStore, error) {
 	db, err := memdb.NewMemDB(dbSchema)
 	if err != nil {
 		return nil, err
 	}
 
+	discardLogger := log.New(io.Discard, "", 0)
+
 	return &ModuleStore{
 		db:                    db,
 		tableName:             moduleTableName,
-		logger:                logger,
+		logger:                discardLogger,
 		TimeProvider:          time.Now,
 		MaxModuleNesting:      50,
 		providerSchemasStore:  providerSchemasStore,

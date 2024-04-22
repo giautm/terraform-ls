@@ -4,6 +4,7 @@
 package eventbus
 
 import (
+	"io"
 	"log"
 	"sync"
 )
@@ -18,13 +19,19 @@ type EventBus struct {
 	discoverTopic  *Topic[DiscoverEvent]
 }
 
-func NewEventBus(log *log.Logger) *EventBus {
+func NewEventBus() *EventBus {
+	discardLogger := log.New(io.Discard, "", 0)
+
 	return &EventBus{
-		logger:         log,
+		logger:         discardLogger,
 		didOpenTopic:   NewTopic[DidOpenEvent](),
 		didChangeTopic: NewTopic[DidChangeEvent](),
 		discoverTopic:  NewTopic[DiscoverEvent](),
 	}
+}
+
+func (eb *EventBus) SetLogger(logger *log.Logger) {
+	eb.logger = logger
 }
 
 // Topic represents a generic subscription topic

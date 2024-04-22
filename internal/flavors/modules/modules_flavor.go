@@ -6,6 +6,7 @@ package variables
 import (
 	"context"
 	"errors"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -44,17 +45,18 @@ type ModulesFlavor struct {
 	fs             jobs.ReadOnlyFS
 }
 
-func NewModulesFlavor(logger *log.Logger, eventbus *eventbus.EventBus, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore, fs jobs.ReadOnlyFS) (*ModulesFlavor, error) {
-	store, err := state.NewModuleStore(logger, providerSchemasStore, registryModuleStore, rootStore, terraformVersionStore)
+func NewModulesFlavor(eventbus *eventbus.EventBus, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore, fs jobs.ReadOnlyFS) (*ModulesFlavor, error) {
+	store, err := state.NewModuleStore(providerSchemasStore, registryModuleStore, rootStore, terraformVersionStore)
 	if err != nil {
 		return nil, err
 	}
+	discardLogger := log.New(io.Discard, "", 0)
 
 	return &ModulesFlavor{
 		store:                 store,
 		eventbus:              eventbus,
 		stopFunc:              func() {},
-		logger:                logger,
+		logger:                discardLogger,
 		jobStore:              jobStore,
 		providerSchemasStore:  providerSchemasStore,
 		registryModuleStore:   registryModuleStore,
@@ -62,6 +64,11 @@ func NewModulesFlavor(logger *log.Logger, eventbus *eventbus.EventBus, jobStore 
 		terraformVersionStore: terraformVersionStore,
 		fs:                    fs,
 	}, nil
+}
+
+func (f *ModulesFlavor) SetLogger(logger *log.Logger) {
+	f.logger = logger
+	f.store.SetLogger(logger)
 }
 
 func (f *ModulesFlavor) Run(ctx context.Context) {

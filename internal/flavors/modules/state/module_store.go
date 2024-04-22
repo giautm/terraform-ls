@@ -42,6 +42,10 @@ type ModuleStore struct {
 	terraformVersionStore *globalState.TerraformVersionStore
 }
 
+func (s *ModuleStore) SetLogger(logger *log.Logger) {
+	s.logger = logger
+}
+
 func moduleByPath(txn *memdb.Txn, path string) (*ModuleRecord, error) {
 	obj, err := txn.First(moduleTableName, "id", path)
 	if err != nil {

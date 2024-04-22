@@ -20,6 +20,10 @@ type VariableStore struct {
 	logger    *log.Logger
 }
 
+func (s *VariableStore) SetLogger(logger *log.Logger) {
+	s.logger = logger
+}
+
 func (s *VariableStore) Add(modPath string) error {
 	txn := s.db.Txn(true)
 	defer txn.Abort()

@@ -5,6 +5,7 @@ package variables
 
 import (
 	"context"
+	"io"
 	"log"
 
 	"github.com/hashicorp/hcl-lang/decoder"
@@ -23,24 +24,32 @@ type VariablesFlavor struct {
 	store    *state.VariableStore
 	eventbus *eventbus.EventBus
 	stopFunc context.CancelFunc
+	logger   *log.Logger
 
 	jobStore *globalState.JobStore
 	fs       jobs.ReadOnlyFS
 }
 
-func NewVariablesFlavor(logger *log.Logger, eventbus *eventbus.EventBus, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*VariablesFlavor, error) {
-	store, err := state.NewVariableStore(logger)
+func NewVariablesFlavor(eventbus *eventbus.EventBus, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*VariablesFlavor, error) {
+	store, err := state.NewVariableStore()
 	if err != nil {
 		return nil, err
 	}
+	discardLogger := log.New(io.Discard, "", 0)
 
 	return &VariablesFlavor{
 		store:    store,
 		eventbus: eventbus,
 		stopFunc: func() {},
+		logger:   discardLogger,
 		jobStore: jobStore,
 		fs:       fs,
 	}, nil
+}
+
+func (f *VariablesFlavor) SetLogger(logger *log.Logger) {
+	f.logger = logger
+	f.store.SetLogger(logger)
 }
 
 func (f *VariablesFlavor) Run(ctx context.Context) {
