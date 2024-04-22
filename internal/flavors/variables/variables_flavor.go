@@ -62,10 +62,10 @@ func (f *VariablesFlavor) Run(ctx context.Context) {
 		for {
 			select {
 			case open := <-didOpen:
-				f.DidOpen(open.Context, open.Path, open.LanguageID)
+				f.DidOpen(open.Context, open.Dir, open.LanguageID)
 			case didChange := <-didChange:
 				// TODO move into own handler
-				f.DidOpen(didChange.Context, didChange.Path, didChange.LanguageID)
+				f.DidOpen(didChange.Context, didChange.Dir, didChange.LanguageID)
 
 			case <-ctx.Done():
 				return
@@ -74,8 +74,9 @@ func (f *VariablesFlavor) Run(ctx context.Context) {
 	}()
 }
 
-func (f *VariablesFlavor) DidOpen(ctx context.Context, path string, languageID string) (job.IDs, error) {
+func (f *VariablesFlavor) DidOpen(ctx context.Context, dir document.DirHandle, languageID string) (job.IDs, error) {
 	ids := make(job.IDs, 0)
+	path := dir.Path()
 
 	// Add to state if language ID matches
 	if languageID == "terraform-vars" {
@@ -91,9 +92,8 @@ func (f *VariablesFlavor) DidOpen(ctx context.Context, path string, languageID s
 		return ids, nil
 	}
 
-	modHandle := document.DirHandleFromPath(path)
 	parseVarsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: modHandle,
+		Dir: dir,
 		Func: func(ctx context.Context) error {
 			return jobs.ParseVariables(ctx, f.fs, f.store, path)
 		},
@@ -106,7 +106,7 @@ func (f *VariablesFlavor) DidOpen(ctx context.Context, path string, languageID s
 	ids = append(ids, parseVarsId)
 
 	varsRefsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: modHandle,
+		Dir: dir,
 		Func: func(ctx context.Context) error {
 			return jobs.DecodeVarsReferences(ctx, f.store, path)
 		},

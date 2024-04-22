@@ -55,10 +55,10 @@ func (f *StacksFlavor) Run(ctx context.Context) {
 		for {
 			select {
 			case open := <-didOpen:
-				f.DidOpen(open.Context, open.Path, open.LanguageID)
+				f.DidOpen(open.Context, open.Dir, open.LanguageID)
 			case didChange := <-didChange:
 				// TODO move into own handler
-				f.DidOpen(didChange.Context, didChange.Path, didChange.LanguageID)
+				f.DidOpen(didChange.Context, didChange.Dir, didChange.LanguageID)
 
 			case <-ctx.Done():
 				return
@@ -67,8 +67,9 @@ func (f *StacksFlavor) Run(ctx context.Context) {
 	}()
 }
 
-func (f *StacksFlavor) DidOpen(ctx context.Context, path string, languageID string) (job.IDs, error) {
+func (f *StacksFlavor) DidOpen(ctx context.Context, dir document.DirHandle, languageID string) (job.IDs, error) {
 	ids := make(job.IDs, 0)
+	path := dir.Path()
 
 	if languageID != "terraform-stacks" {
 		// we should return here if the languageID is not "terraform-stacks"
@@ -88,9 +89,8 @@ func (f *StacksFlavor) DidOpen(ctx context.Context, path string, languageID stri
 		return ids, nil
 	}
 
-	stacksHandle := document.DirHandleFromPath(path)
 	parseStacksId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: stacksHandle,
+		Dir: dir,
 		Func: func(ctx context.Context) error {
 			return jobs.ParseStack(ctx, f.fs, f.store, path)
 		},

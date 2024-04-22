@@ -83,11 +83,11 @@ func (f *ModulesFlavor) Run(ctx context.Context) {
 			select {
 			case didOpen := <-didOpen:
 				// TODO collect errors
-				f.DidOpen(didOpen.Context, didOpen.Path, didOpen.LanguageID)
+				f.DidOpen(didOpen.Context, didOpen.Dir, didOpen.LanguageID)
 			case didChange := <-didChange:
 				// TODO move into own handler
 				// TODO collect errors
-				f.DidOpen(didChange.Context, didChange.Path, didChange.LanguageID)
+				f.DidOpen(didChange.Context, didChange.Dir, didChange.LanguageID)
 			case discover := <-discover:
 				// TODO collect errors
 				f.Discover(discover.Path, discover.Files)
@@ -116,8 +116,9 @@ func (f *ModulesFlavor) Discover(path string, files []string) error {
 	return nil
 }
 
-func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID string) (job.IDs, error) {
+func (f *ModulesFlavor) DidOpen(ctx context.Context, dir document.DirHandle, languageID string) (job.IDs, error) {
 	ids := make(job.IDs, 0)
+	path := dir.Path()
 	f.logger.Printf("did open %q %q", path, languageID)
 
 	// We need to decide if the path is relevant to us. It can be relevant because
@@ -138,9 +139,8 @@ func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID str
 		return ids, nil
 	}
 
-	modHandle := document.DirHandleFromPath(path)
 	parseId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: modHandle,
+		Dir: dir,
 		Func: func(ctx context.Context) error {
 			return jobs.ParseModuleConfiguration(ctx, f.fs, f.store, path)
 		},
@@ -153,7 +153,7 @@ func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID str
 	ids = append(ids, parseId)
 
 	metaId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: modHandle,
+		Dir: dir,
 		Func: func(ctx context.Context) error {
 			return jobs.LoadModuleMetadata(ctx, f.store, path)
 		},
@@ -166,16 +166,16 @@ func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID str
 				f.logger.Printf("loading module metadata returned error: %s", jobErr)
 			}
 
-			modCalls, mcErr := f.decodeDeclaredModuleCalls(ctx, modHandle, true)
+			modCalls, mcErr := f.decodeDeclaredModuleCalls(ctx, dir, true)
 			if mcErr != nil {
-				f.logger.Printf("decoding declared module calls for %q failed: %s", modHandle.URI, mcErr)
+				f.logger.Printf("decoding declared module calls for %q failed: %s", dir.URI, mcErr)
 				// We log the error but still continue scheduling other jobs
 				// which are still valuable for the rest of the configuration
 				// even if they may not have the data for module calls.
 			}
 
 			eSchemaId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-				Dir: modHandle,
+				Dir: dir,
 				Func: func(ctx context.Context) error {
 					return jobs.PreloadEmbeddedSchema(ctx, f.logger, schemas.FS, f.store, f.providerSchemasStore, path)
 				},
@@ -188,7 +188,7 @@ func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID str
 			deferIds = append(deferIds, eSchemaId)
 
 			refTargetsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-				Dir: modHandle,
+				Dir: dir,
 				Func: func(ctx context.Context) error {
 					return jobs.DecodeReferenceTargets(ctx, f.store, path)
 				},
@@ -202,7 +202,7 @@ func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID str
 			deferIds = append(deferIds, refTargetsId)
 
 			refOriginsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-				Dir: modHandle,
+				Dir: dir,
 				Func: func(ctx context.Context) error {
 					return jobs.DecodeReferenceOrigins(ctx, f.store, path)
 				},
@@ -226,7 +226,7 @@ func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID str
 	// This job may make an HTTP request, and we schedule it in
 	// the low-priority queue, so we don't want to wait for it.
 	_, err = f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: modHandle,
+		Dir: dir,
 		Func: func(ctx context.Context) error {
 			return jobs.GetModuleDataFromRegistry(ctx, f.registryClient,
 				f.store, f.registryModuleStore, path)
@@ -242,23 +242,23 @@ func (f *ModulesFlavor) DidOpen(ctx context.Context, path string, languageID str
 	return ids, nil
 }
 
-func (f *ModulesFlavor) decodeDeclaredModuleCalls(ctx context.Context, modHandle document.DirHandle, ignoreState bool) (job.IDs, error) {
+func (f *ModulesFlavor) decodeDeclaredModuleCalls(ctx context.Context, dir document.DirHandle, ignoreState bool) (job.IDs, error) {
 	jobIds := make(job.IDs, 0)
 
-	declared, err := f.store.DeclaredModuleCalls(modHandle.Path())
+	declared, err := f.store.DeclaredModuleCalls(dir.Path())
 	if err != nil {
 		return jobIds, err
 	}
 
 	var errs *multierror.Error
 
-	f.logger.Printf("indexing declared module calls for %q: %d", modHandle.URI, len(declared))
+	f.logger.Printf("indexing declared module calls for %q: %d", dir.URI, len(declared))
 	for _, mc := range declared {
 		localSource, ok := mc.SourceAddr.(tfmodule.LocalSourceAddr)
 		if !ok {
 			continue
 		}
-		mcPath := filepath.Join(modHandle.Path(), filepath.FromSlash(localSource.String()))
+		mcPath := filepath.Join(dir.Path(), filepath.FromSlash(localSource.String()))
 
 		fi, err := os.Stat(mcPath)
 		if err != nil || !fi.IsDir() {
@@ -287,15 +287,15 @@ func (f *ModulesFlavor) decodeDeclaredModuleCalls(ctx context.Context, modHandle
 	return jobIds, errs.ErrorOrNil()
 }
 
-func (f *ModulesFlavor) decodeModuleAtPath(ctx context.Context, modHandle document.DirHandle, ignoreState bool) (job.IDs, error) {
+func (f *ModulesFlavor) decodeModuleAtPath(ctx context.Context, dir document.DirHandle, ignoreState bool) (job.IDs, error) {
 	var errs *multierror.Error
 	jobIds := make(job.IDs, 0)
 	refCollectionDeps := make(job.IDs, 0)
 
 	parseId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: modHandle,
+		Dir: dir,
 		Func: func(ctx context.Context) error {
-			return jobs.ParseModuleConfiguration(ctx, f.fs, f.store, modHandle.Path())
+			return jobs.ParseModuleConfiguration(ctx, f.fs, f.store, dir.Path())
 		},
 		Type:        op.OpTypeParseModuleConfiguration.String(),
 		IgnoreState: ignoreState,
@@ -310,10 +310,10 @@ func (f *ModulesFlavor) decodeModuleAtPath(ctx context.Context, modHandle docume
 	var metaId job.ID
 	if parseId != "" {
 		metaId, err = f.jobStore.EnqueueJob(ctx, job.Job{
-			Dir:  modHandle,
+			Dir:  dir,
 			Type: op.OpTypeLoadModuleMetadata.String(),
 			Func: func(ctx context.Context) error {
-				return jobs.LoadModuleMetadata(ctx, f.store, modHandle.Path())
+				return jobs.LoadModuleMetadata(ctx, f.store, dir.Path())
 			},
 			DependsOn:   job.IDs{parseId},
 			IgnoreState: ignoreState,
@@ -326,9 +326,9 @@ func (f *ModulesFlavor) decodeModuleAtPath(ctx context.Context, modHandle docume
 		}
 
 		eSchemaId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-			Dir: modHandle,
+			Dir: dir,
 			Func: func(ctx context.Context) error {
-				return jobs.PreloadEmbeddedSchema(ctx, f.logger, schemas.FS, f.store, f.providerSchemasStore, modHandle.Path())
+				return jobs.PreloadEmbeddedSchema(ctx, f.logger, schemas.FS, f.store, f.providerSchemasStore, dir.Path())
 			},
 			Type:        op.OpTypePreloadEmbeddedSchema.String(),
 			DependsOn:   job.IDs{metaId},
@@ -343,7 +343,7 @@ func (f *ModulesFlavor) decodeModuleAtPath(ctx context.Context, modHandle docume
 	}
 
 	if parseId != "" {
-		ids, err := f.collectReferences(ctx, modHandle, refCollectionDeps, ignoreState)
+		ids, err := f.collectReferences(ctx, dir, refCollectionDeps, ignoreState)
 		if err != nil {
 			multierror.Append(errs, err)
 		} else {
@@ -356,15 +356,15 @@ func (f *ModulesFlavor) decodeModuleAtPath(ctx context.Context, modHandle docume
 	return jobIds, errs.ErrorOrNil()
 }
 
-func (f *ModulesFlavor) collectReferences(ctx context.Context, modHandle document.DirHandle, dependsOn job.IDs, ignoreState bool) (job.IDs, error) {
+func (f *ModulesFlavor) collectReferences(ctx context.Context, dir document.DirHandle, dependsOn job.IDs, ignoreState bool) (job.IDs, error) {
 	ids := make(job.IDs, 0)
 
 	var errs *multierror.Error
 
 	id, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: modHandle,
+		Dir: dir,
 		Func: func(ctx context.Context) error {
-			return jobs.DecodeReferenceTargets(ctx, f.store, modHandle.Path())
+			return jobs.DecodeReferenceTargets(ctx, f.store, dir.Path())
 		},
 		Type:        op.OpTypeDecodeReferenceTargets.String(),
 		DependsOn:   dependsOn,
@@ -377,9 +377,9 @@ func (f *ModulesFlavor) collectReferences(ctx context.Context, modHandle documen
 	}
 
 	id, err = f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: modHandle,
+		Dir: dir,
 		Func: func(ctx context.Context) error {
-			return jobs.DecodeReferenceOrigins(ctx, f.store, modHandle.Path())
+			return jobs.DecodeReferenceOrigins(ctx, f.store, dir.Path())
 		},
 		Type:        op.OpTypeDecodeReferenceOrigins.String(),
 		DependsOn:   dependsOn,

@@ -30,7 +30,6 @@ func (svc *service) TextDocumentDidOpen(ctx context.Context, params lsp.DidOpenT
 	}
 
 	dh := document.HandleFromURI(docURI)
-
 	err := svc.stateStore.DocumentStore.OpenDocument(dh, params.TextDocument.LanguageID,
 		int(params.TextDocument.Version), []byte(params.TextDocument.Text))
 	if err != nil {
@@ -38,15 +37,14 @@ func (svc *service) TextDocumentDidOpen(ctx context.Context, params lsp.DidOpenT
 	}
 
 	svc.eventBus.DidOpen(eventbus.DidOpenEvent{
-		Context:    ctx,
-		Path:       dh.Dir.Path(),
+		Context:    ctx, // We pass the context for data here
+		Dir:        dh.Dir,
 		LanguageID: params.TextDocument.LanguageID,
 	})
 
-	modHandle := document.DirHandleFromPath(dh.Dir.Path())
 	if svc.singleFileMode {
 		// TODO
-		err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, modHandle)
+		err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, dh.Dir)
 		if err != nil {
 			return err
 		}

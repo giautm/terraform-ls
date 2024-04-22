@@ -3,12 +3,16 @@
 
 package eventbus
 
-import "context"
+import (
+	"context"
+
+	"github.com/hashicorp/terraform-ls/internal/document"
+)
 
 type DidChangeEvent struct {
 	Context context.Context
 
-	Path       string
+	Dir        document.DirHandle
 	LanguageID string
 	// TODO? Filename string
 
@@ -21,6 +25,6 @@ func (n *EventBus) OnDidChange(identifier string) <-chan DidChangeEvent {
 }
 
 func (n *EventBus) DidChange(e DidChangeEvent) {
-	n.logger.Printf("bus: -> DidChange %s", e.Path)
+	n.logger.Printf("bus: -> DidChange %s", e.Dir)
 	n.didChangeTopic.Publish(e)
 }

@@ -3,12 +3,16 @@
 
 package eventbus
 
-import "context"
+import (
+	"context"
+
+	"github.com/hashicorp/terraform-ls/internal/document"
+)
 
 type DidOpenEvent struct {
 	Context context.Context
 
-	Path       string
+	Dir        document.DirHandle
 	LanguageID string
 
 	// IncludeSubmodules bool
@@ -20,6 +24,6 @@ func (n *EventBus) OnDidOpen(identifier string) <-chan DidOpenEvent {
 }
 
 func (n *EventBus) DidOpen(e DidOpenEvent) {
-	n.logger.Printf("bus: -> DidOpen %s", e.Path)
+	n.logger.Printf("bus: -> DidOpen %s", e.Dir)
 	n.didOpenTopic.Publish(e)
 }

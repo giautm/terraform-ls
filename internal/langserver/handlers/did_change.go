@@ -55,15 +55,10 @@ func (svc *service) TextDocumentDidChange(ctx context.Context, params lsp.DidCha
 	}
 
 	svc.eventBus.DidChange(eventbus.DidChangeEvent{
-		Context:    ctx,
-		Path:       dh.Dir.Path(),
+		Context:    ctx, // We pass the context for data here
+		Dir:        dh.Dir,
 		LanguageID: doc.LanguageID,
 	})
 
-	// jobIds, err := svc.indexer.DocumentChanged(ctx, dh.Dir)
-	// if err != nil {
-	// 	return err
-	// }
-
-	return nil //svc.stateStore.JobStore.WaitForJobs(ctx, jobIds...)
+	return nil
 }
