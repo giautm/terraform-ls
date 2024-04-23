@@ -14,27 +14,25 @@ import (
 )
 
 type Indexer struct {
-	logger                *log.Logger
-	rootStore             *state.RootStore
-	terraformVersionStore *state.TerraformVersionStore
-	fs                    ReadOnlyFS
-	jobStore              job.JobStore
-	tfExecFactory         exec.ExecutorFactory
-	registryClient        registry.Client
+	logger         *log.Logger
+	rootStore      *state.RootStore
+	fs             ReadOnlyFS
+	jobStore       job.JobStore
+	tfExecFactory  exec.ExecutorFactory
+	registryClient registry.Client
 }
 
-func NewIndexer(fs ReadOnlyFS, jobStore job.JobStore, rootStore *state.RootStore, terraformVersionStore *state.TerraformVersionStore, tfExec exec.ExecutorFactory, registryClient registry.Client) *Indexer {
+func NewIndexer(fs ReadOnlyFS, jobStore job.JobStore, rootStore *state.RootStore, tfExec exec.ExecutorFactory, registryClient registry.Client) *Indexer {
 
 	discardLogger := log.New(io.Discard, "", 0)
 
 	return &Indexer{
-		fs:                    fs,
-		jobStore:              jobStore,
-		rootStore:             rootStore,
-		terraformVersionStore: terraformVersionStore,
-		tfExecFactory:         tfExec,
-		registryClient:        registryClient,
-		logger:                discardLogger,
+		fs:             fs,
+		jobStore:       jobStore,
+		rootStore:      rootStore,
+		tfExecFactory:  tfExec,
+		registryClient: registryClient,
+		logger:         discardLogger,
 	}
 }
 

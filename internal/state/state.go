@@ -16,14 +16,13 @@ import (
 )
 
 const (
-	documentsTableName        = "documents"
-	jobsTableName             = "jobs"
-	rootTableName             = "root"
-	providerSchemaTableName   = "provider_schema"
-	providerIdsTableName      = "provider_ids"
-	walkerPathsTableName      = "walker_paths"
-	registryModuleTableName   = "registry_module"
-	terraformVersionTableName = "terraform_version"
+	documentsTableName      = "documents"
+	jobsTableName           = "jobs"
+	rootTableName           = "root"
+	providerSchemaTableName = "provider_schema"
+	providerIdsTableName    = "provider_ids"
+	walkerPathsTableName    = "walker_paths"
+	registryModuleTableName = "registry_module"
 
 	tracerName = "github.com/hashicorp/terraform-ls/internal/state"
 )
@@ -191,38 +190,21 @@ var dbSchema = &memdb.DBSchema{
 				},
 			},
 		},
-		terraformVersionTableName: {
-			Name: terraformVersionTableName,
-			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
-					Unique:  true,
-					Indexer: &memdb.StringFieldIndex{Field: "path"},
-				},
-			},
-		},
 	},
 }
 
 type StateStore struct {
-	DocumentStore     *DocumentStore
-	JobStore          *JobStore
-	Roots             *RootStore
-	ProviderSchemas   *ProviderSchemaStore
-	WalkerPaths       *WalkerPathStore
-	RegistryModules   *RegistryModuleStore
-	TerraformVersions *TerraformVersionStore
+	DocumentStore   *DocumentStore
+	JobStore        *JobStore
+	Roots           *RootStore
+	ProviderSchemas *ProviderSchemaStore
+	WalkerPaths     *WalkerPathStore
+	RegistryModules *RegistryModuleStore
 
 	db *memdb.MemDB
 }
 
 type RootStore struct {
-	db        *memdb.MemDB
-	tableName string
-	logger    *log.Logger
-}
-
-type TerraformVersionStore struct {
 	db        *memdb.MemDB
 	tableName string
 	logger    *log.Logger
@@ -286,11 +268,6 @@ func NewStateStore() (*StateStore, error) {
 			nextOpenDirMu:   &sync.Mutex{},
 			nextClosedDirMu: &sync.Mutex{},
 		},
-		TerraformVersions: &TerraformVersionStore{
-			db:        db,
-			tableName: terraformVersionTableName,
-			logger:    defaultLogger,
-		},
 	}, nil
 }
 
@@ -301,7 +278,6 @@ func (s *StateStore) SetLogger(logger *log.Logger) {
 	s.ProviderSchemas.logger = logger
 	s.WalkerPaths.logger = logger
 	s.RegistryModules.logger = logger
-	s.TerraformVersions.logger = logger
 }
 
 var defaultLogger = log.New(io.Discard, "", 0)

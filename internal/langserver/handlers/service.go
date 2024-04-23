@@ -529,7 +529,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.fs.SetLogger(svc.logger)
 
 	svc.indexer = indexer.NewIndexer(svc.fs, svc.stateStore.JobStore,
-		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.tfExecFactory, svc.registryClient)
+		svc.stateStore.Roots, svc.tfExecFactory, svc.registryClient)
 	svc.indexer.SetLogger(svc.logger)
 
 	svc.eventBus = eventbus.NewEventBus()
