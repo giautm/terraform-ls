@@ -8,7 +8,7 @@ import "context"
 // DiscoverEvent is an event that is triggered by the walker when a new
 // directory is walked.
 //
-// Most flavors use this to create a state entry if the directory contains
+// Most features use this to create a state entry if the directory contains
 // files relevant to them.
 type DiscoverEvent struct {
 	Context context.Context

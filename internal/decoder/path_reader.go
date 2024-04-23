@@ -14,7 +14,7 @@ import (
 type PathReaderMap map[string]decoder.PathReader
 
 // GlobalPathReader is a PathReader that delegates language specific PathReaders
-// that usually come from flavors.
+// that usually come from features.
 type GlobalPathReader struct {
 	PathReaderMap PathReaderMap
 }
@@ -30,9 +30,9 @@ func (mr *GlobalPathReader) Paths(ctx context.Context) []lang.Path {
 }
 
 func (mr *GlobalPathReader) PathContext(path lang.Path) (*decoder.PathContext, error) {
-	if flavor, ok := mr.PathReaderMap[path.LanguageID]; ok {
-		return flavor.PathContext(path)
+	if feature, ok := mr.PathReaderMap[path.LanguageID]; ok {
+		return feature.PathContext(path)
 	}
 
-	return nil, fmt.Errorf("no flavor found for language %s", path.LanguageID)
+	return nil, fmt.Errorf("no feature found for language %s", path.LanguageID)
 }

@@ -19,10 +19,10 @@ import (
 	idecoder "github.com/hashicorp/terraform-ls/internal/decoder"
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
+	fmodules "github.com/hashicorp/terraform-ls/internal/features/modules"
+	fstacks "github.com/hashicorp/terraform-ls/internal/features/stacks"
+	fvariables "github.com/hashicorp/terraform-ls/internal/features/variables"
 	"github.com/hashicorp/terraform-ls/internal/filesystem"
-	fmodules "github.com/hashicorp/terraform-ls/internal/flavors/modules"
-	fstacks "github.com/hashicorp/terraform-ls/internal/flavors/stacks"
-	fvariables "github.com/hashicorp/terraform-ls/internal/flavors/variables"
 	"github.com/hashicorp/terraform-ls/internal/indexer"
 	"github.com/hashicorp/terraform-ls/internal/job"
 	"github.com/hashicorp/terraform-ls/internal/langserver/diagnostics"
@@ -45,10 +45,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-type Flavors struct {
-	Modules   *fmodules.ModulesFlavor
-	Variables *fvariables.VariablesFlavor
-	Stacks    *fstacks.StacksFlavor
+type Features struct {
+	Modules   *fmodules.ModulesFeature
+	Variables *fvariables.VariablesFeature
+	Stacks    *fstacks.StacksFeature
 }
 
 type service struct {
@@ -80,7 +80,7 @@ type service struct {
 	registryClient registry.Client
 
 	eventBus *eventbus.EventBus
-	flavors  *Flavors
+	features *Features
 
 	walkerCollector    *walker.WalkerCollector
 	additionalHandlers map[string]rpch.Func
@@ -543,23 +543,23 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.openDirWalker.SetLogger(svc.logger)
 
-	moduleFlavor, err := fmodules.NewModulesFlavor(svc.eventBus,
+	modulesFeature, err := fmodules.NewModulesFeature(svc.eventBus,
 		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
 		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.fs)
 	if err != nil {
 		return err
 	}
-	moduleFlavor.SetLogger(svc.logger)
-	moduleFlavor.Run(svc.sessCtx)
+	modulesFeature.SetLogger(svc.logger)
+	modulesFeature.Run(svc.sessCtx)
 
-	variablesFlavor, err := fvariables.NewVariablesFlavor(svc.eventBus, svc.stateStore.JobStore, svc.fs)
+	variablesFeature, err := fvariables.NewVariablesFeature(svc.eventBus, svc.stateStore.JobStore, svc.fs)
 	if err != nil {
 		return err
 	}
-	variablesFlavor.SetLogger(svc.logger)
-	variablesFlavor.Run(svc.sessCtx)
+	variablesFeature.SetLogger(svc.logger)
+	variablesFeature.Run(svc.sessCtx)
 
-	stacksFlavor, err := fstacks.NewStacksFlavor(
+	stacksFeature, err := fstacks.NewStacksFeature(
 		svc.logger,
 		svc.eventBus,
 		svc.stateStore.JobStore,
@@ -567,21 +567,21 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	if err != nil {
 		return err
 	}
-	stacksFlavor.Run(svc.sessCtx)
+	stacksFeature.Run(svc.sessCtx)
 
 	// TODO? check if we still need this
-	svc.flavors = &Flavors{
-		Modules:   moduleFlavor,
-		Variables: variablesFlavor,
-		Stacks:    stacksFlavor,
+	svc.features = &Features{
+		Modules:   modulesFeature,
+		Variables: variablesFeature,
+		Stacks:    stacksFeature,
 	}
 
 	svc.decoder = decoder.NewDecoder(&idecoder.GlobalPathReader{
 		PathReaderMap: idecoder.PathReaderMap{
-			"terraform":        moduleFlavor,
-			"terraform-vars":   variablesFlavor,
-			"terraform-stacks": stacksFlavor,
-			// "terraform-deploy": stacksFlavor,
+			"terraform":        modulesFeature,
+			"terraform-vars":   variablesFeature,
+			"terraform-stacks": stacksFeature,
+			// "terraform-deploy": stacksFeature,
 		},
 	})
 	decoderContext := idecoder.DecoderContext(ctx)

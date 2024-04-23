@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/terraform-ls/internal/features/modules/ast"
+	"github.com/hashicorp/terraform-ls/internal/features/stacks/ast"
 )
 
-func ParseModuleFiles(fs FS, modPath string) (ast.ModFiles, ast.ModDiags, error) {
-	files := make(ast.ModFiles, 0)
-	diags := make(ast.ModDiags, 0)
+func ParseStacksFiles(fs FS, modPath string) (ast.StacksFiles, ast.StacksDiags, error) {
+	files := make(ast.StacksFiles, 0)
+	diags := make(ast.StacksDiags, 0)
 
 	infos, err := fs.ReadDir(modPath)
 	if err != nil {
@@ -26,7 +26,7 @@ func ParseModuleFiles(fs FS, modPath string) (ast.ModFiles, ast.ModDiags, error)
 		}
 
 		name := info.Name()
-		if !ast.IsModuleFilename(name) {
+		if !ast.IsStacksFilename(name) {
 			continue
 		}
 
@@ -37,11 +37,11 @@ func ParseModuleFiles(fs FS, modPath string) (ast.ModFiles, ast.ModDiags, error)
 		src, err := fs.ReadFile(fullPath)
 		if err != nil {
 			// If a file isn't accessible, continue with reading the
-			// remaining module files
+			// remaining Stacks files
 			continue
 		}
 
-		filename := ast.ModFilename(name)
+		filename := ast.StacksFilename(name)
 
 		f, pDiags := parseFile(src, filename)
 
@@ -54,7 +54,7 @@ func ParseModuleFiles(fs FS, modPath string) (ast.ModFiles, ast.ModDiags, error)
 	return files, diags, nil
 }
 
-func ParseModuleFile(fs FS, filePath string) (*hcl.File, hcl.Diagnostics, error) {
+func ParseStacksFile(fs FS, filePath string) (*hcl.File, hcl.Diagnostics, error) {
 	src, err := fs.ReadFile(filePath)
 	if err != nil {
 		// If a file isn't accessible, return
@@ -62,7 +62,7 @@ func ParseModuleFile(fs FS, filePath string) (*hcl.File, hcl.Diagnostics, error)
 	}
 
 	name := filepath.Base(filePath)
-	filename := ast.ModFilename(name)
+	filename := ast.StacksFilename(name)
 
 	f, pDiags := parseFile(src, filename)
 
