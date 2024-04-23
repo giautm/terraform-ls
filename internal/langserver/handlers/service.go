@@ -24,7 +24,6 @@ import (
 	fstacks "github.com/hashicorp/terraform-ls/internal/features/stacks"
 	fvariables "github.com/hashicorp/terraform-ls/internal/features/variables"
 	"github.com/hashicorp/terraform-ls/internal/filesystem"
-	"github.com/hashicorp/terraform-ls/internal/indexer"
 	"github.com/hashicorp/terraform-ls/internal/job"
 	"github.com/hashicorp/terraform-ls/internal/langserver/diagnostics"
 	"github.com/hashicorp/terraform-ls/internal/langserver/notifier"
@@ -78,7 +77,6 @@ type service struct {
 	server         session.Server
 	diagsNotifier  *diagnostics.Notifier
 	notifier       *notifier.Notifier
-	indexer        *indexer.Indexer
 	registryClient registry.Client
 
 	eventBus *eventbus.EventBus
@@ -527,10 +525,6 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 
 	svc.fs = filesystem.NewFilesystem(svc.stateStore.DocumentStore)
 	svc.fs.SetLogger(svc.logger)
-
-	svc.indexer = indexer.NewIndexer(svc.fs, svc.stateStore.JobStore,
-		svc.stateStore.Roots, svc.tfExecFactory, svc.registryClient)
-	svc.indexer.SetLogger(svc.logger)
 
 	svc.eventBus = eventbus.NewEventBus()
 	svc.eventBus.SetLogger(svc.logger)

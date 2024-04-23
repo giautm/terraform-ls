@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
@@ -128,15 +129,76 @@ func (f *RootModulesFeature) DidOpen(ctx context.Context, dir document.DirHandle
 	return ids, nil
 }
 
-func (s *RootModulesFeature) InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error) {
-	return s.store.InstalledModuleCalls(modPath)
+func (f *RootModulesFeature) InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error) {
+	return f.store.InstalledModuleCalls(modPath)
 }
 
-func (s *RootModulesFeature) TerraformVersion(modPath string) *version.Version {
-	version, err := s.store.RootRecordByPath(modPath)
+func (f *RootModulesFeature) TerraformVersion(modPath string) *version.Version {
+	version, err := f.store.RootRecordByPath(modPath)
 	if err != nil {
 		return nil
 	}
 
 	return version.TerraformVersion
+}
+
+func (f *RootModulesFeature) ModuleManifestChanged(ctx context.Context, modHandle document.DirHandle) (job.IDs, error) {
+	ids := make(job.IDs, 0)
+
+	modManifestId, err := f.jobStore.EnqueueJob(ctx, job.Job{
+		Dir: modHandle,
+		Func: func(ctx context.Context) error {
+			return jobs.ParseModuleManifest(ctx, f.fs, f.store, modHandle.Path())
+		},
+		Type:        op.OpTypeParseModuleManifest.String(),
+		IgnoreState: true,
+		Defer: func(ctx context.Context, jobErr error) (job.IDs, error) {
+			return nil, nil //idx.decodeInstalledModuleCalls(ctx, modHandle, true)
+		},
+	})
+	if err != nil {
+		return ids, err
+	}
+	ids = append(ids, modManifestId)
+
+	return ids, nil
+}
+
+func (f *RootModulesFeature) PluginLockChanged(ctx context.Context, modHandle document.DirHandle) (job.IDs, error) {
+	ids := make(job.IDs, 0)
+	dependsOn := make(job.IDs, 0)
+	var errs *multierror.Error
+
+	pSchemaVerId, err := f.jobStore.EnqueueJob(ctx, job.Job{
+		Dir: modHandle,
+		Func: func(ctx context.Context) error {
+			return jobs.ParseProviderVersions(ctx, f.fs, f.store, modHandle.Path())
+		},
+		IgnoreState: true,
+		Type:        op.OpTypeParseProviderVersions.String(),
+	})
+	if err != nil {
+		errs = multierror.Append(errs, err)
+	} else {
+		ids = append(ids, pSchemaVerId)
+		dependsOn = append(dependsOn, pSchemaVerId)
+	}
+
+	pSchemaId, err := f.jobStore.EnqueueJob(ctx, job.Job{
+		Dir: modHandle,
+		Func: func(ctx context.Context) error {
+			ctx = exec.WithExecutorFactory(ctx, f.tfExecFactory)
+			return nil //module.ObtainSchema(ctx, idx.recordStores.Modules, idx.recordStores.ProviderSchemas, modHandle.Path())
+		},
+		IgnoreState: true,
+		Type:        op.OpTypeObtainSchema.String(),
+		DependsOn:   dependsOn,
+	})
+	if err != nil {
+		errs = multierror.Append(errs, err)
+	} else {
+		ids = append(ids, pSchemaId)
+	}
+
+	return ids, errs.ErrorOrNil()
 }
