@@ -26,7 +26,7 @@ import (
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
 	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
-	tfmodule "github.com/hashicorp/terraform-schema/module"
+	tfmod "github.com/hashicorp/terraform-schema/module"
 )
 
 type ModulesFeature struct {
@@ -35,6 +35,7 @@ type ModulesFeature struct {
 	stopFunc context.CancelFunc
 	logger   *log.Logger
 
+	rootFeature          fdecoder.RootReader
 	jobStore             *globalState.JobStore
 	providerSchemasStore *globalState.ProviderSchemaStore
 	registryModuleStore  *globalState.RegistryModuleStore
@@ -43,8 +44,8 @@ type ModulesFeature struct {
 	fs             jobs.ReadOnlyFS
 }
 
-func NewModulesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, rootStore *globalState.RootStore, terraformVersionStore *globalState.TerraformVersionStore, fs jobs.ReadOnlyFS) (*ModulesFeature, error) {
-	store, err := state.NewModuleStore(providerSchemasStore, registryModuleStore, rootStore, terraformVersionStore)
+func NewModulesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, fs jobs.ReadOnlyFS, rootFeature fdecoder.RootReader) (*ModulesFeature, error) {
+	store, err := state.NewModuleStore(providerSchemasStore, registryModuleStore)
 	if err != nil {
 		return nil, err
 	}
@@ -56,6 +57,7 @@ func NewModulesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobSto
 		stopFunc:             func() {},
 		logger:               discardLogger,
 		jobStore:             jobStore,
+		rootFeature:          rootFeature,
 		providerSchemasStore: providerSchemasStore,
 		registryModuleStore:  registryModuleStore,
 		fs:                   fs,
@@ -186,7 +188,7 @@ func (f *ModulesFeature) DidOpen(ctx context.Context, dir document.DirHandle, la
 			refTargetsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
 				Dir: dir,
 				Func: func(ctx context.Context) error {
-					return jobs.DecodeReferenceTargets(ctx, f.store, path)
+					return jobs.DecodeReferenceTargets(ctx, f.store, f.rootFeature, path)
 				},
 				Type:        op.OpTypeDecodeReferenceTargets.String(),
 				DependsOn:   job.IDs{eSchemaId},
@@ -200,7 +202,7 @@ func (f *ModulesFeature) DidOpen(ctx context.Context, dir document.DirHandle, la
 			refOriginsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
 				Dir: dir,
 				Func: func(ctx context.Context) error {
-					return jobs.DecodeReferenceOrigins(ctx, f.store, path)
+					return jobs.DecodeReferenceOrigins(ctx, f.store, f.rootFeature, path)
 				},
 				Type:        op.OpTypeDecodeReferenceOrigins.String(),
 				DependsOn:   append(modCalls, eSchemaId),
@@ -250,7 +252,7 @@ func (f *ModulesFeature) decodeDeclaredModuleCalls(ctx context.Context, dir docu
 
 	f.logger.Printf("indexing declared module calls for %q: %d", dir.URI, len(declared))
 	for _, mc := range declared {
-		localSource, ok := mc.SourceAddr.(tfmodule.LocalSourceAddr)
+		localSource, ok := mc.SourceAddr.(tfmod.LocalSourceAddr)
 		if !ok {
 			continue
 		}
@@ -360,7 +362,7 @@ func (f *ModulesFeature) collectReferences(ctx context.Context, dir document.Dir
 	id, err := f.jobStore.EnqueueJob(ctx, job.Job{
 		Dir: dir,
 		Func: func(ctx context.Context) error {
-			return jobs.DecodeReferenceTargets(ctx, f.store, dir.Path())
+			return jobs.DecodeReferenceTargets(ctx, f.store, f.rootFeature, dir.Path())
 		},
 		Type:        op.OpTypeDecodeReferenceTargets.String(),
 		DependsOn:   dependsOn,
@@ -375,7 +377,7 @@ func (f *ModulesFeature) collectReferences(ctx context.Context, dir document.Dir
 	id, err = f.jobStore.EnqueueJob(ctx, job.Job{
 		Dir: dir,
 		Func: func(ctx context.Context) error {
-			return jobs.DecodeReferenceOrigins(ctx, f.store, dir.Path())
+			return jobs.DecodeReferenceOrigins(ctx, f.store, f.rootFeature, dir.Path())
 		},
 		Type:        op.OpTypeDecodeReferenceOrigins.String(),
 		DependsOn:   dependsOn,
@@ -393,6 +395,7 @@ func (f *ModulesFeature) collectReferences(ctx context.Context, dir document.Dir
 func (f *ModulesFeature) PathContext(path lang.Path) (*decoder.PathContext, error) {
 	pathReader := &fdecoder.PathReader{
 		StateReader: f.store,
+		RootReader:  f.rootFeature,
 	}
 
 	return pathReader.PathContext(path)

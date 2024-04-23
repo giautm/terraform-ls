@@ -555,7 +555,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 
 	modulesFeature, err := fmodules.NewModulesFeature(svc.eventBus,
 		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
-		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.fs, rootModulesFeature)
+		svc.fs, rootModulesFeature)
 	if err != nil {
 		return err
 	}

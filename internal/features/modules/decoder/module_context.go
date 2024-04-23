@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/features/modules/state"
 )
 
-func modulePathContext(mod *state.ModuleRecord, stateReader StateReader) (*decoder.PathContext, error) {
+func modulePathContext(mod *state.ModuleRecord, stateReader CombinedReader) (*decoder.PathContext, error) {
 	schema, err := schemaForModule(mod, stateReader)
 	if err != nil {
 		return nil, err

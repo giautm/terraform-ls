@@ -11,8 +11,8 @@ import (
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
-func schemaForModule(mod *state.ModuleRecord, stateReader StateReader) (*schema.BodySchema, error) {
-	resolvedVersion := tfschema.ResolveVersion(stateReader.InstalledTerraformVersion(mod.Path()), mod.Meta.CoreRequirements)
+func schemaForModule(mod *state.ModuleRecord, stateReader CombinedReader) (*schema.BodySchema, error) {
+	resolvedVersion := tfschema.ResolveVersion(stateReader.TerraformVersion(mod.Path()), mod.Meta.CoreRequirements)
 	sm := tfschema.NewSchemaMerger(mustCoreSchemaForVersion(resolvedVersion))
 	sm.SetTerraformVersion(resolvedVersion)
 	sm.SetStateReader(stateReader)

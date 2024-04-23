@@ -36,10 +36,8 @@ type ModuleStore struct {
 	// to parse provider requirements before returning error.
 	MaxModuleNesting int
 
-	providerSchemasStore  *globalState.ProviderSchemaStore
-	registryModuleStore   *globalState.RegistryModuleStore
-	rootStore             *globalState.RootStore
-	terraformVersionStore *globalState.TerraformVersionStore
+	providerSchemasStore *globalState.ProviderSchemaStore
+	registryModuleStore  *globalState.RegistryModuleStore
 }
 
 func (s *ModuleStore) SetLogger(logger *log.Logger) {
@@ -622,17 +620,4 @@ func (s *ModuleStore) RegistryModuleMeta(addr tfaddr.Module, cons version.Constr
 
 func (s *ModuleStore) ProviderSchema(modPath string, addr tfaddr.Provider, vc version.Constraints) (*tfschema.ProviderSchema, error) {
 	return s.providerSchemasStore.ProviderSchema(modPath, addr, vc)
-}
-
-func (s *ModuleStore) InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error) {
-	return s.rootStore.InstalledModuleCalls(modPath)
-}
-
-func (s *ModuleStore) InstalledTerraformVersion(modPath string) *version.Version {
-	record, err := s.terraformVersionStore.TerraformVersionRecord()
-	if err != nil {
-		return nil
-	}
-
-	return record.TerraformVersion
 }

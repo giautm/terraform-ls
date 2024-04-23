@@ -32,7 +32,7 @@ import (
 // It relies on previously parsed AST (via [ParseModuleConfiguration]),
 // core schema of appropriate version (as obtained via [GetTerraformVersion])
 // and provider schemas ([PreloadEmbeddedSchema] or [ObtainSchema]).
-func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, modPath string) error {
+func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, rootFeature fdecoder.RootReader, modPath string) error {
 	mod, err := modStore.ModuleRecordByPath(modPath)
 	if err != nil {
 		return err
@@ -50,6 +50,7 @@ func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, mo
 
 	d := decoder.NewDecoder(&fdecoder.PathReader{
 		StateReader: modStore,
+		RootReader:  rootFeature,
 	})
 	d.SetContext(idecoder.DecoderContext(ctx))
 
@@ -98,7 +99,7 @@ func SchemaModuleValidation(ctx context.Context, modStore *state.ModuleStore, mo
 //
 // It relies on [DecodeReferenceTargets] and [DecodeReferenceOrigins]
 // to supply both origins and targets to compare.
-func ReferenceValidation(ctx context.Context, modStore *state.ModuleStore, modPath string) error {
+func ReferenceValidation(ctx context.Context, modStore *state.ModuleStore, rootFeature fdecoder.RootReader, modPath string) error {
 	mod, err := modStore.ModuleRecordByPath(modPath)
 	if err != nil {
 		return err
@@ -116,6 +117,7 @@ func ReferenceValidation(ctx context.Context, modStore *state.ModuleStore, modPa
 
 	pathReader := &fdecoder.PathReader{
 		StateReader: modStore,
+		RootReader:  rootFeature,
 	}
 	pathCtx, err := pathReader.PathContext(lang.Path{
 		Path:       modPath,

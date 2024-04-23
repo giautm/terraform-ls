@@ -23,13 +23,22 @@ type StateReader interface {
 	ModuleRecordByPath(modPath string) (*state.ModuleRecord, error)
 	List() ([]*state.ModuleRecord, error)
 
-	InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error)
 	RegistryModuleMeta(addr tfaddr.Module, cons version.Constraints) (*registry.ModuleData, error)
 	ProviderSchema(modPath string, addr tfaddr.Provider, vc version.Constraints) (*tfschema.ProviderSchema, error)
-	InstalledTerraformVersion(modPath string) *version.Version
+}
+
+type RootReader interface {
+	InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error)
+	TerraformVersion(modPath string) *version.Version
+}
+
+type CombinedReader struct {
+	RootReader
+	StateReader
 }
 
 type PathReader struct {
+	RootReader  RootReader
 	StateReader StateReader
 }
 
@@ -57,5 +66,8 @@ func (pr *PathReader) PathContext(path lang.Path) (*decoder.PathContext, error) 
 	if err != nil {
 		return nil, err
 	}
-	return modulePathContext(mod, pr.StateReader)
+	return modulePathContext(mod, CombinedReader{
+		StateReader: pr.StateReader,
+		RootReader:  pr.RootReader,
+	})
 }
