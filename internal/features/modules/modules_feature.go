@@ -436,3 +436,12 @@ func (f *ModulesFeature) CoreRequirements(modPath string) (version.Constraints, 
 
 	return mod.Meta.CoreRequirements, nil
 }
+
+func (f *ModulesFeature) ModuleInputs(modPath string) (map[string]tfmod.Variable, error) {
+	mod, err := f.store.ModuleRecordByPath(modPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return mod.Meta.Variables, nil
+}

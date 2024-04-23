@@ -556,16 +556,16 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	rootModulesFeature.SetLogger(svc.logger)
 	rootModulesFeature.Start(svc.sessCtx)
 
-	modulesFeature, err := fmodules.NewModulesFeature(svc.eventBus,
-		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
-		svc.fs, rootModulesFeature)
+	modulesFeature, err := fmodules.NewModulesFeature(svc.eventBus, svc.stateStore.JobStore,
+		svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules, svc.fs, rootModulesFeature)
 	if err != nil {
 		return err
 	}
 	modulesFeature.SetLogger(svc.logger)
 	modulesFeature.Start(svc.sessCtx)
 
-	variablesFeature, err := fvariables.NewVariablesFeature(svc.eventBus, svc.stateStore.JobStore, svc.fs)
+	variablesFeature, err := fvariables.NewVariablesFeature(svc.eventBus, svc.stateStore.JobStore,
+		svc.fs, modulesFeature)
 	if err != nil {
 		return err
 	}

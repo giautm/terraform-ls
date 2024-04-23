@@ -24,7 +24,7 @@ import (
 //
 // This is useful in hovering over those variable names,
 // go-to-definition and go-to-references.
-func DecodeVarsReferences(ctx context.Context, varStore *state.VariableStore, modPath string) error {
+func DecodeVarsReferences(ctx context.Context, varStore *state.VariableStore, moduleFeature fdecoder.ModuleReader, modPath string) error {
 	mod, err := varStore.VariableRecordByPath(modPath)
 	if err != nil {
 		return err
@@ -43,7 +43,8 @@ func DecodeVarsReferences(ctx context.Context, varStore *state.VariableStore, mo
 	}
 
 	d := decoder.NewDecoder(&fdecoder.PathReader{
-		StateReader: varStore,
+		StateReader:  varStore,
+		ModuleReader: moduleFeature,
 	})
 	d.SetContext(idecoder.DecoderContext(ctx))
 

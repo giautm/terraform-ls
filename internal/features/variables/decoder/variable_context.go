@@ -9,18 +9,11 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/ast"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/state"
-	tfmod "github.com/hashicorp/terraform-schema/module"
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
-func variablePathContext(mod *state.VariableRecord, stateReader StateReader) (*decoder.PathContext, error) {
-	variables := make(map[string]tfmod.Variable)
-	// TODO: GET SCHEMA FROM MODULE
-	// meta, err := stateReader.LocalModuleMeta(mod.Path())
-	// if err == nil {
-	// 	variables = meta.Variables
-	// }
-
+func variablePathContext(mod *state.VariableRecord, moduleReader ModuleReader) (*decoder.PathContext, error) {
+	variables, _ := moduleReader.ModuleInputs(mod.Path())
 	schema, err := tfschema.SchemaForVariables(variables, mod.Path())
 	if err != nil {
 		return nil, err

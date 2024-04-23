@@ -26,11 +26,12 @@ type VariablesFeature struct {
 	stopFunc context.CancelFunc
 	logger   *log.Logger
 
-	jobStore *globalState.JobStore
-	fs       jobs.ReadOnlyFS
+	moduleFeature fdecoder.ModuleReader
+	jobStore      *globalState.JobStore
+	fs            jobs.ReadOnlyFS
 }
 
-func NewVariablesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*VariablesFeature, error) {
+func NewVariablesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS, moduleFeature fdecoder.ModuleReader) (*VariablesFeature, error) {
 	store, err := state.NewVariableStore()
 	if err != nil {
 		return nil, err
@@ -38,12 +39,13 @@ func NewVariablesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobS
 	discardLogger := log.New(io.Discard, "", 0)
 
 	return &VariablesFeature{
-		store:    store,
-		eventbus: eventbus,
-		stopFunc: func() {},
-		logger:   discardLogger,
-		jobStore: jobStore,
-		fs:       fs,
+		store:         store,
+		eventbus:      eventbus,
+		stopFunc:      func() {},
+		logger:        discardLogger,
+		moduleFeature: moduleFeature,
+		jobStore:      jobStore,
+		fs:            fs,
 	}, nil
 }
 
@@ -113,7 +115,7 @@ func (f *VariablesFeature) DidOpen(ctx context.Context, dir document.DirHandle, 
 	varsRefsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
 		Dir: dir,
 		Func: func(ctx context.Context) error {
-			return jobs.DecodeVarsReferences(ctx, f.store, path)
+			return jobs.DecodeVarsReferences(ctx, f.store, f.moduleFeature, path)
 		},
 		Type:      op.OpTypeDecodeVarsReferences.String(),
 		DependsOn: job.IDs{parseVarsId},
@@ -128,7 +130,8 @@ func (f *VariablesFeature) DidOpen(ctx context.Context, dir document.DirHandle, 
 
 func (f *VariablesFeature) PathContext(path lang.Path) (*decoder.PathContext, error) {
 	pathReader := &fdecoder.PathReader{
-		StateReader: f.store,
+		StateReader:  f.store,
+		ModuleReader: f.moduleFeature,
 	}
 
 	return pathReader.PathContext(path)

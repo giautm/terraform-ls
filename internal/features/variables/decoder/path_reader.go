@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/state"
 	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
+	tfmod "github.com/hashicorp/terraform-schema/module"
 )
 
 type StateReader interface {
@@ -17,8 +18,13 @@ type StateReader interface {
 	VariableRecordByPath(path string) (*state.VariableRecord, error)
 }
 
+type ModuleReader interface {
+	ModuleInputs(modPath string) (map[string]tfmod.Variable, error)
+}
+
 type PathReader struct {
-	StateReader StateReader
+	StateReader  StateReader
+	ModuleReader ModuleReader
 }
 
 var _ decoder.PathReader = &PathReader{}
@@ -45,6 +51,5 @@ func (pr *PathReader) PathContext(path lang.Path) (*decoder.PathContext, error) 
 	if err != nil {
 		return nil, err
 	}
-	return variablePathContext(mod, pr.StateReader)
-
+	return variablePathContext(mod, pr.ModuleReader)
 }

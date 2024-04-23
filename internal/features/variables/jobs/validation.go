@@ -28,7 +28,7 @@ import (
 //
 // It relies on previously parsed AST (via [ParseVariables])
 // and schema, as provided via [LoadModuleMetadata]).
-func SchemaVariablesValidation(ctx context.Context, varStore *state.VariableStore, modPath string) error {
+func SchemaVariablesValidation(ctx context.Context, varStore *state.VariableStore, moduleFeature fdecoder.ModuleReader, modPath string) error {
 	mod, err := varStore.VariableRecordByPath(modPath)
 	if err != nil {
 		return err
@@ -45,7 +45,8 @@ func SchemaVariablesValidation(ctx context.Context, varStore *state.VariableStor
 	}
 
 	d := decoder.NewDecoder(&fdecoder.PathReader{
-		StateReader: varStore,
+		StateReader:  varStore,
+		ModuleReader: moduleFeature,
 	})
 	d.SetContext(idecoder.DecoderContext(ctx))
 
