@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/terraform-ls/internal/document"
@@ -412,4 +413,26 @@ func (f *ModulesFeature) Paths(ctx context.Context) []lang.Path {
 	// TODO
 
 	return paths
+}
+
+func (f *ModulesFeature) DeclaredModuleCalls(modPath string) (map[string]tfmod.DeclaredModuleCall, error) {
+	return f.store.DeclaredModuleCalls(modPath)
+}
+
+func (f *ModulesFeature) ProviderRequirements(modPath string) (tfmod.ProviderRequirements, error) {
+	mod, err := f.store.ModuleRecordByPath(modPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return mod.Meta.ProviderRequirements, nil
+}
+
+func (f *ModulesFeature) CoreRequirements(modPath string) (version.Constraints, error) {
+	mod, err := f.store.ModuleRecordByPath(modPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return mod.Meta.CoreRequirements, nil
 }

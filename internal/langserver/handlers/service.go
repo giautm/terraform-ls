@@ -50,6 +50,15 @@ type Features struct {
 	RootModules *frootmodules.RootModulesFeature
 	Stacks      *fstacks.StacksFeature
 	Variables   *fvariables.VariablesFeature
+
+	API FeaturesAPI
+}
+
+type FeaturesAPI struct {
+	*fmodules.ModulesFeature
+	*frootmodules.RootModulesFeature
+	*fstacks.StacksFeature
+	*fvariables.VariablesFeature
 }
 
 type service struct {
@@ -573,12 +582,19 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	}
 	stacksFeature.Start(svc.sessCtx)
 
-	// TODO? check if we still need this
 	svc.features = &Features{
 		Modules:     modulesFeature,
 		RootModules: rootModulesFeature,
 		Stacks:      stacksFeature,
 		Variables:   variablesFeature,
+
+		// WIP
+		API: FeaturesAPI{
+			ModulesFeature:     modulesFeature,
+			RootModulesFeature: rootModulesFeature,
+			StacksFeature:      stacksFeature,
+			VariablesFeature:   variablesFeature,
+		},
 	}
 
 	svc.decoder = decoder.NewDecoder(&idecoder.GlobalPathReader{

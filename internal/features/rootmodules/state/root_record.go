@@ -375,14 +375,14 @@ func (s *RootStore) UpdateTerraformAndProviderVersions(modPath string, tfVer *ve
 	return nil
 }
 
-func (s *RootStore) CallersOfModule(modPath string) ([]*RootRecord, error) {
+func (s *RootStore) CallersOfModule(modPath string) ([]string, error) {
 	txn := s.db.Txn(false)
 	it, err := txn.Get(s.tableName, "id")
 	if err != nil {
 		return nil, err
 	}
 
-	callers := make([]*RootRecord, 0)
+	callers := make([]string, 0)
 	for item := it.Next(); item != nil; item = it.Next() {
 		record := item.(*RootRecord)
 
@@ -390,7 +390,7 @@ func (s *RootStore) CallersOfModule(modPath string) ([]*RootRecord, error) {
 			continue
 		}
 		if record.ModManifest.ContainsLocalModule(modPath) {
-			callers = append(callers, record)
+			callers = append(callers, record.path)
 		}
 	}
 

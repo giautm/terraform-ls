@@ -5,218 +5,216 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/creachadair/jrpc2"
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/job"
-	"github.com/hashicorp/terraform-ls/internal/protocol"
 	lsp "github.com/hashicorp/terraform-ls/internal/protocol"
-	"github.com/hashicorp/terraform-ls/internal/state"
-	"github.com/hashicorp/terraform-ls/internal/terraform/datadir"
-	"github.com/hashicorp/terraform-ls/internal/uri"
 )
 
 func (svc *service) DidChangeWatchedFiles(ctx context.Context, params lsp.DidChangeWatchedFilesParams) error {
 	var ids job.IDs
 
-	for _, change := range params.Changes {
-		rawURI := string(change.URI)
+	// for _, change := range params.Changes {
+	// 	rawURI := string(change.URI)
 
-		// This is necessary because clients may not send delete notifications
-		// for individual nested files when the parent directory is deleted.
-		// VS Code / vscode-languageclient behaves this way.
-		if modUri, ok := datadir.ModuleUriFromDataDir(rawURI); ok {
-			modHandle := document.DirHandleFromURI(modUri)
-			if change.Type == protocol.Deleted {
-				// This is unlikely to happen unless the user manually removed files
-				// See https://github.com/hashicorp/terraform/issues/30005
-				err := svc.stateStore.Roots.UpdateModManifest(modHandle.Path(), nil, nil)
-				if err != nil {
-					svc.logger.Printf("failed to remove module manifest for %q: %s", modHandle, err)
-				}
-			}
-			continue
-		}
+	// 	// This is necessary because clients may not send delete notifications
+	// 	// for individual nested files when the parent directory is deleted.
+	// 	// VS Code / vscode-languageclient behaves this way.
+	// 	if modUri, ok := datadir.ModuleUriFromDataDir(rawURI); ok {
+	// 		modHandle := document.DirHandleFromURI(modUri)
+	// 		if change.Type == protocol.Deleted {
+	// 			// This is unlikely to happen unless the user manually removed files
+	// 			// See https://github.com/hashicorp/terraform/issues/30005
 
-		if modUri, ok := datadir.ModuleUriFromPluginLockFile(rawURI); ok {
-			if change.Type == protocol.Deleted {
-				// This is unlikely to happen unless the user manually removed files
-				// See https://github.com/hashicorp/terraform/issues/30005
-				// Cached provider schema could be removed here but it may be useful
-				// in other modules, so we trade some memory for better UX here.
-				continue
-			}
+	// 			err := svc.stateStore.Roots.UpdateModManifest(modHandle.Path(), nil, nil)
+	// 			if err != nil {
+	// 				svc.logger.Printf("failed to remove module manifest for %q: %s", modHandle, err)
+	// 			}
+	// 		}
+	// 		continue
+	// 	}
 
-			modHandle := document.DirHandleFromURI(modUri)
-			err := svc.indexModuleIfNotExists(ctx, modHandle)
-			if err != nil {
-				svc.logger.Printf("failed to index module %q: %s", modHandle, err)
-				continue
-			}
+	// 	if modUri, ok := datadir.ModuleUriFromPluginLockFile(rawURI); ok {
+	// 		if change.Type == protocol.Deleted {
+	// 			// This is unlikely to happen unless the user manually removed files
+	// 			// See https://github.com/hashicorp/terraform/issues/30005
+	// 			// Cached provider schema could be removed here but it may be useful
+	// 			// in other modules, so we trade some memory for better UX here.
+	// 			continue
+	// 		}
 
-			jobIds, err := svc.indexer.PluginLockChanged(ctx, modHandle)
-			if err != nil {
-				svc.logger.Printf("error refreshing plugins for %q: %s", rawURI, err)
-				continue
-			}
-			ids = append(ids, jobIds...)
-			continue
-		}
+	// 		modHandle := document.DirHandleFromURI(modUri)
+	// 		err := svc.indexModuleIfNotExists(ctx, modHandle)
+	// 		if err != nil {
+	// 			svc.logger.Printf("failed to index module %q: %s", modHandle, err)
+	// 			continue
+	// 		}
 
-		if modUri, ok := datadir.ModuleUriFromModuleLockFile(rawURI); ok {
-			modHandle := document.DirHandleFromURI(modUri)
-			if change.Type == protocol.Deleted {
-				// This is unlikely to happen unless the user manually removed files
-				// See https://github.com/hashicorp/terraform/issues/30005
-				err := svc.stateStore.Roots.UpdateModManifest(modHandle.Path(), nil, nil)
-				if err != nil {
-					svc.logger.Printf("failed to remove module manifest for %q: %s", modHandle, err)
-				}
-				continue
-			}
+	// 		jobIds, err := svc.indexer.PluginLockChanged(ctx, modHandle)
+	// 		if err != nil {
+	// 			svc.logger.Printf("error refreshing plugins for %q: %s", rawURI, err)
+	// 			continue
+	// 		}
+	// 		ids = append(ids, jobIds...)
+	// 		continue
+	// 	}
 
-			err := svc.indexModuleIfNotExists(ctx, modHandle)
-			if err != nil {
-				svc.logger.Printf("failed to index module %q: %s", modHandle, err)
-				continue
-			}
+	// 	if modUri, ok := datadir.ModuleUriFromModuleLockFile(rawURI); ok {
+	// 		modHandle := document.DirHandleFromURI(modUri)
+	// 		if change.Type == protocol.Deleted {
+	// 			// This is unlikely to happen unless the user manually removed files
+	// 			// See https://github.com/hashicorp/terraform/issues/30005
 
-			jobIds, err := svc.indexer.ModuleManifestChanged(ctx, modHandle)
-			if err != nil {
-				svc.logger.Printf("error refreshing plugins for %q: %s", modHandle, err)
-				continue
-			}
-			ids = append(ids, jobIds...)
-			continue
-		}
+	// 			err := svc.stateStore.Roots.UpdateModManifest(modHandle.Path(), nil, nil)
+	// 			if err != nil {
+	// 				svc.logger.Printf("failed to remove module manifest for %q: %s", modHandle, err)
+	// 			}
+	// 			continue
+	// 		}
 
-		rawPath, err := uri.PathFromURI(rawURI)
-		if err != nil {
-			svc.logger.Printf("error parsing %q: %s", rawURI, err)
-			continue
-		}
+	// 		err := svc.indexModuleIfNotExists(ctx, modHandle)
+	// 		if err != nil {
+	// 			svc.logger.Printf("failed to index module %q: %s", modHandle, err)
+	// 			continue
+	// 		}
 
-		if change.Type == protocol.Deleted {
-			// We don't know whether file or dir is being deleted
-			// 1st we just blindly try to look it up as a directory
-			// TODO! check other stores as well
-			_, err = svc.stateStore.Roots.RootRecordByPath(rawPath)
-			if err == nil {
-				svc.removeIndexedModule(ctx, rawURI)
-				continue
-			}
+	// 		jobIds, err := svc.indexer.ModuleManifestChanged(ctx, modHandle)
+	// 		if err != nil {
+	// 			svc.logger.Printf("error refreshing plugins for %q: %s", modHandle, err)
+	// 			continue
+	// 		}
+	// 		ids = append(ids, jobIds...)
+	// 		continue
+	// 	}
 
-			// 2nd we try again assuming it is a file
-			parentDir := filepath.Dir(rawPath)
-			// TODO! check other stores as well
-			_, err = svc.stateStore.Roots.RootRecordByPath(parentDir)
-			if err != nil {
-				svc.logger.Printf("error finding module (%q deleted): %s", parentDir, err)
-				continue
-			}
+	// 	rawPath, err := uri.PathFromURI(rawURI)
+	// 	if err != nil {
+	// 		svc.logger.Printf("error parsing %q: %s", rawURI, err)
+	// 		continue
+	// 	}
 
-			// and check the parent directory still exists
-			fi, err := os.Stat(parentDir)
-			if err != nil {
-				if os.IsNotExist(err) {
-					// if not, we remove the indexed module
-					svc.removeIndexedModule(ctx, rawURI)
-					continue
-				}
-				svc.logger.Printf("error checking existence (%q deleted): %s", parentDir, err)
-				continue
-			}
-			if !fi.IsDir() {
-				svc.logger.Printf("error: %q (deleted) is not a directory", parentDir)
-				continue
-			}
+	// 	if change.Type == protocol.Deleted {
+	// 		// We don't know whether file or dir is being deleted
+	// 		// 1st we just blindly try to look it up as a directory
+	// 		// TODO! check other stores as well
 
-			// if the parent directory exists, we just need to
-			// reparse the module after a file was deleted from it
-			// dirHandle := document.DirHandleFromPath(parentDir)
-			// jobIds, err := svc.indexer.DocumentChanged(ctx, dirHandle)
-			// if err != nil {
-			// 	svc.logger.Printf("error parsing module (%q deleted): %s", rawURI, err)
-			// 	continue
-			// }
+	// 		_, err = svc.stateStore.Roots.RootRecordByPath(rawPath)
+	// 		if err == nil {
+	// 			svc.removeIndexedModule(ctx, rawURI)
+	// 			continue
+	// 		}
 
-			// ids = append(ids, jobIds...)
-		}
+	// 		// 2nd we try again assuming it is a file
+	// 		parentDir := filepath.Dir(rawPath)
+	// 		// TODO! check other stores as well
 
-		if change.Type == protocol.Changed {
-			// Check if document is open and skip running any jobs
-			// as we already did so as part of textDocument/didChange
-			// which clients should always send for *open* documents
-			// even if they change outside of the IDE.
-			docHandle := document.HandleFromURI(rawURI)
-			isOpen, err := svc.stateStore.DocumentStore.IsDocumentOpen(docHandle)
-			if err != nil {
-				svc.logger.Printf("error when checking open document (%q changed): %s", rawURI, err)
-			}
-			if isOpen {
-				svc.logger.Printf("document is open - ignoring event for %q", rawURI)
-				continue
-			}
+	// 		_, err = svc.stateStore.Roots.RootRecordByPath(parentDir)
+	// 		if err != nil {
+	// 			svc.logger.Printf("error finding module (%q deleted): %s", parentDir, err)
+	// 			continue
+	// 		}
 
-			ph, err := modHandleFromRawOsPath(ctx, rawPath)
-			if err != nil {
-				if err == ErrorSkip {
-					continue
-				}
-				svc.logger.Printf("error (%q changed): %s", rawURI, err)
-				continue
-			}
+	// 		// and check the parent directory still exists
+	// 		fi, err := os.Stat(parentDir)
+	// 		if err != nil {
+	// 			if os.IsNotExist(err) {
+	// 				// if not, we remove the indexed module
+	// 				svc.removeIndexedModule(ctx, rawURI)
+	// 				continue
+	// 			}
+	// 			svc.logger.Printf("error checking existence (%q deleted): %s", parentDir, err)
+	// 			continue
+	// 		}
+	// 		if !fi.IsDir() {
+	// 			svc.logger.Printf("error: %q (deleted) is not a directory", parentDir)
+	// 			continue
+	// 		}
 
-			// TODO! check other stores as well
-			_, err = svc.stateStore.Roots.RootRecordByPath(ph.DirHandle.Path())
-			if err != nil {
-				svc.logger.Printf("error finding module (%q changed): %s", rawURI, err)
-				continue
-			}
+	// 		// if the parent directory exists, we just need to
+	// 		// reparse the module after a file was deleted from it
+	// 		// dirHandle := document.DirHandleFromPath(parentDir)
+	// 		// jobIds, err := svc.indexer.DocumentChanged(ctx, dirHandle)
+	// 		// if err != nil {
+	// 		// 	svc.logger.Printf("error parsing module (%q deleted): %s", rawURI, err)
+	// 		// 	continue
+	// 		// }
 
-			// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
-			// if err != nil {
-			// 	svc.logger.Printf("error parsing module (%q changed): %s", rawURI, err)
-			// 	continue
-			// }
+	// 		// ids = append(ids, jobIds...)
+	// 	}
 
-			// ids = append(ids, jobIds...)
-		}
+	// 	if change.Type == protocol.Changed {
+	// 		// Check if document is open and skip running any jobs
+	// 		// as we already did so as part of textDocument/didChange
+	// 		// which clients should always send for *open* documents
+	// 		// even if they change outside of the IDE.
+	// 		docHandle := document.HandleFromURI(rawURI)
+	// 		isOpen, err := svc.stateStore.DocumentStore.IsDocumentOpen(docHandle)
+	// 		if err != nil {
+	// 			svc.logger.Printf("error when checking open document (%q changed): %s", rawURI, err)
+	// 		}
+	// 		if isOpen {
+	// 			svc.logger.Printf("document is open - ignoring event for %q", rawURI)
+	// 			continue
+	// 		}
 
-		if change.Type == protocol.Created {
-			ph, err := modHandleFromRawOsPath(ctx, rawPath)
-			if err != nil {
-				if err == ErrorSkip {
-					continue
-				}
-				svc.logger.Printf("error (%q created): %s", rawURI, err)
-				continue
-			}
+	// 		ph, err := modHandleFromRawOsPath(ctx, rawPath)
+	// 		if err != nil {
+	// 			if err == ErrorSkip {
+	// 				continue
+	// 			}
+	// 			svc.logger.Printf("error (%q changed): %s", rawURI, err)
+	// 			continue
+	// 		}
 
-			if ph.IsDir {
-				err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, ph.DirHandle)
-				if err != nil {
-					jrpc2.ServerFromContext(ctx).Notify(ctx, "window/showMessage", &lsp.ShowMessageParams{
-						Type: lsp.Warning,
-						Message: fmt.Sprintf("Ignoring new folder %s: %s."+
-							" This is most likely bug, please report it.", rawURI, err),
-					})
-					continue
-				}
-			} else {
-				// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
-				// if err != nil {
-				// 	svc.logger.Printf("error parsing module (%q created): %s", rawURI, err)
-				// 	continue
-				// }
+	// 		// TODO! check other stores as well
 
-				// ids = append(ids, jobIds...)
-			}
-		}
-	}
+	// 		_, err = svc.stateStore.Roots.RootRecordByPath(ph.DirHandle.Path())
+	// 		if err != nil {
+	// 			svc.logger.Printf("error finding module (%q changed): %s", rawURI, err)
+	// 			continue
+	// 		}
+
+	// 		// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
+	// 		// if err != nil {
+	// 		// 	svc.logger.Printf("error parsing module (%q changed): %s", rawURI, err)
+	// 		// 	continue
+	// 		// }
+
+	// 		// ids = append(ids, jobIds...)
+	// 	}
+
+	// 	if change.Type == protocol.Created {
+	// 		ph, err := modHandleFromRawOsPath(ctx, rawPath)
+	// 		if err != nil {
+	// 			if err == ErrorSkip {
+	// 				continue
+	// 			}
+	// 			svc.logger.Printf("error (%q created): %s", rawURI, err)
+	// 			continue
+	// 		}
+
+	// 		if ph.IsDir {
+	// 			err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, ph.DirHandle)
+	// 			if err != nil {
+	// 				jrpc2.ServerFromContext(ctx).Notify(ctx, "window/showMessage", &lsp.ShowMessageParams{
+	// 					Type: lsp.Warning,
+	// 					Message: fmt.Sprintf("Ignoring new folder %s: %s."+
+	// 						" This is most likely bug, please report it.", rawURI, err),
+	// 				})
+	// 				continue
+	// 			}
+	// 		} else {
+	// 			// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
+	// 			// if err != nil {
+	// 			// 	svc.logger.Printf("error parsing module (%q created): %s", rawURI, err)
+	// 			// 	continue
+	// 			// }
+
+	// 			// ids = append(ids, jobIds...)
+	// 		}
+	// 	}
+	// }
 
 	err := svc.stateStore.JobStore.WaitForJobs(ctx, ids...)
 	if err != nil {
@@ -228,21 +226,22 @@ func (svc *service) DidChangeWatchedFiles(ctx context.Context, params lsp.DidCha
 
 func (svc *service) indexModuleIfNotExists(ctx context.Context, modHandle document.DirHandle) error {
 	// TODO! check other stores as well
-	_, err := svc.stateStore.Roots.RootRecordByPath(modHandle.Path())
-	if err != nil {
-		if state.IsRecordNotFound(err) {
-			err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, modHandle)
-			if err != nil {
-				return fmt.Errorf("failed to walk module %q: %w", modHandle, err)
-			}
-			err = svc.stateStore.WalkerPaths.WaitForDirs(ctx, []document.DirHandle{modHandle})
-			if err != nil {
-				return fmt.Errorf("failed to wait for module walk %q: %w", modHandle, err)
-			}
-		} else {
-			return fmt.Errorf("failed to find module %q: %w", modHandle, err)
-		}
-	}
+
+	// _, err := svc.stateStore.Roots.RootRecordByPath(modHandle.Path())
+	// if err != nil {
+	// 	if state.IsRecordNotFound(err) {
+	// 		err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, modHandle)
+	// 		if err != nil {
+	// 			return fmt.Errorf("failed to walk module %q: %w", modHandle, err)
+	// 		}
+	// 		err = svc.stateStore.WalkerPaths.WaitForDirs(ctx, []document.DirHandle{modHandle})
+	// 		if err != nil {
+	// 			return fmt.Errorf("failed to wait for module walk %q: %w", modHandle, err)
+	// 		}
+	// 	} else {
+	// 		return fmt.Errorf("failed to find module %q: %w", modHandle, err)
+	// 	}
+	// }
 	return nil
 }
 

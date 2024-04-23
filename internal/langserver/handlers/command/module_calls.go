@@ -62,16 +62,16 @@ func (h *CmdHandler) ModuleCallsHandler(ctx context.Context, args cmd.CommandArg
 		return response, err
 	}
 
-	// declared, err := h.StateStore.Modules.DeclaredModuleCalls(modPath)
-	// if err != nil {
-	// 	return response, err
-	// }
-	installed, err := h.StateStore.Roots.InstalledModuleCalls(modPath)
+	declared, err := h.FeatureReader.DeclaredModuleCalls(modPath)
+	if err != nil {
+		return response, err
+	}
+	installed, err := h.FeatureReader.InstalledModuleCalls(modPath)
 	if err != nil {
 		return response, err
 	}
 	moduleCalls := tfmod.ModuleCalls{
-		// Declared:  declared,
+		Declared:  declared,
 		Installed: installed,
 	}
 

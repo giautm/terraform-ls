@@ -19,6 +19,7 @@ import (
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
 	"github.com/hashicorp/terraform-ls/internal/terraform/exec"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
+	tfaddr "github.com/hashicorp/terraform-registry-address"
 	tfmod "github.com/hashicorp/terraform-schema/module"
 )
 
@@ -140,6 +141,19 @@ func (f *RootModulesFeature) TerraformVersion(modPath string) *version.Version {
 	}
 
 	return version.TerraformVersion
+}
+
+func (f *RootModulesFeature) InstalledProviders(modPath string) (map[tfaddr.Provider]*version.Version, error) {
+	record, err := f.store.RootRecordByPath(modPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return record.InstalledProviders, nil
+}
+
+func (f *RootModulesFeature) CallersOfModule(modPath string) ([]string, error) {
+	return f.store.CallersOfModule(modPath)
 }
 
 func (f *RootModulesFeature) ModuleManifestChanged(ctx context.Context, modHandle document.DirHandle) (job.IDs, error) {
