@@ -18,7 +18,6 @@ import (
 const (
 	documentsTableName      = "documents"
 	jobsTableName           = "jobs"
-	rootTableName           = "root"
 	providerSchemaTableName = "provider_schema"
 	providerIdsTableName    = "provider_ids"
 	walkerPathsTableName    = "walker_paths"
@@ -114,16 +113,6 @@ var dbSchema = &memdb.DBSchema{
 				},
 			},
 		},
-		rootTableName: {
-			Name: rootTableName,
-			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
-					Unique:  true,
-					Indexer: &memdb.StringFieldIndex{Field: "path"},
-				},
-			},
-		},
 		providerSchemaTableName: {
 			Name: providerSchemaTableName,
 			Indexes: map[string]*memdb.IndexSchema{
@@ -196,18 +185,11 @@ var dbSchema = &memdb.DBSchema{
 type StateStore struct {
 	DocumentStore   *DocumentStore
 	JobStore        *JobStore
-	Roots           *RootStore
 	ProviderSchemas *ProviderSchemaStore
 	WalkerPaths     *WalkerPathStore
 	RegistryModules *RegistryModuleStore
 
 	db *memdb.MemDB
-}
-
-type RootStore struct {
-	db        *memdb.MemDB
-	tableName string
-	logger    *log.Logger
 }
 
 type ProviderSchemaStore struct {
@@ -246,11 +228,6 @@ func NewStateStore() (*StateStore, error) {
 			nextJobHighPrioMu: &sync.Mutex{},
 			nextJobLowPrioMu:  &sync.Mutex{},
 		},
-		Roots: &RootStore{
-			db:        db,
-			tableName: rootTableName,
-			logger:    defaultLogger,
-		},
 		ProviderSchemas: &ProviderSchemaStore{
 			db:        db,
 			tableName: providerSchemaTableName,
@@ -274,7 +251,6 @@ func NewStateStore() (*StateStore, error) {
 func (s *StateStore) SetLogger(logger *log.Logger) {
 	s.DocumentStore.logger = logger
 	s.JobStore.logger = logger
-	s.Roots.logger = logger
 	s.ProviderSchemas.logger = logger
 	s.WalkerPaths.logger = logger
 	s.RegistryModules.logger = logger

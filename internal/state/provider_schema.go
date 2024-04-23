@@ -370,9 +370,9 @@ func (s *ProviderSchemaStore) ProviderSchema(modPath string, addr tfaddr.Provide
 
 	ss := sortableSchemas{
 		schemas: schemas,
-		lookupModule: func(modPath string) (*RootRecord, error) {
-			return rootRecordByPath(txn, modPath)
-		},
+		// lookupModule: func(modPath string) (*RootRecord, error) {
+		// 	return rootRecordByPath(txn, modPath)
+		// },
 		requiredModPath: modPath,
 		requiredVersion: vc,
 	}
@@ -382,7 +382,7 @@ func (s *ProviderSchemaStore) ProviderSchema(modPath string, addr tfaddr.Provide
 	return ss.schemas[0].Schema, nil
 }
 
-type ModuleLookupFunc func(string) (*RootRecord, error)
+// type ModuleLookupFunc func(string) (*RootRecord, error)
 
 func NewDefaultProvider(name string) tfaddr.Provider {
 	return tfaddr.Provider{
@@ -409,8 +409,8 @@ func NewLegacyProvider(name string) tfaddr.Provider {
 }
 
 type sortableSchemas struct {
-	schemas         []*ProviderSchema
-	lookupModule    ModuleLookupFunc
+	schemas []*ProviderSchema
+	// lookupModule    ModuleLookupFunc
 	requiredModPath string
 	requiredVersion version.Constraints
 }
@@ -444,11 +444,11 @@ func (ss sortableSchemas) rankBySource(src SchemaSource) int {
 			return 2
 		}
 
-		mod, err := ss.lookupModule(s.ModulePath)
-		if err == nil && mod.ModManifest != nil &&
-			mod.ModManifest.ContainsLocalModule(ss.requiredModPath) {
-			return 1
-		}
+		// mod, err := ss.lookupModule(s.ModulePath)
+		// if err == nil && mod.ModManifest != nil &&
+		// 	mod.ModManifest.ContainsLocalModule(ss.requiredModPath) {
+		// 	return 1
+		// }
 	}
 
 	return 0
