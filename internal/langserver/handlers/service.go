@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	fmodules "github.com/hashicorp/terraform-ls/internal/features/modules"
+	frootmodules "github.com/hashicorp/terraform-ls/internal/features/rootmodules"
 	fstacks "github.com/hashicorp/terraform-ls/internal/features/stacks"
 	fvariables "github.com/hashicorp/terraform-ls/internal/features/variables"
 	"github.com/hashicorp/terraform-ls/internal/filesystem"
@@ -46,9 +47,10 @@ import (
 )
 
 type Features struct {
-	Modules   *fmodules.ModulesFeature
-	Variables *fvariables.VariablesFeature
-	Stacks    *fstacks.StacksFeature
+	Modules     *fmodules.ModulesFeature
+	RootModules *frootmodules.RootModulesFeature
+	Stacks      *fstacks.StacksFeature
+	Variables   *fvariables.VariablesFeature
 }
 
 type service struct {
@@ -543,9 +545,17 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.closedDirWalker.Collector = svc.walkerCollector
 	svc.openDirWalker.SetLogger(svc.logger)
 
+	rootModulesFeature, err := frootmodules.NewRootModulesFeature(svc.eventBus, svc.tfExecFactory,
+		svc.stateStore.JobStore, svc.fs)
+	if err != nil {
+		return err
+	}
+	rootModulesFeature.SetLogger(svc.logger)
+	rootModulesFeature.Run(svc.sessCtx)
+
 	modulesFeature, err := fmodules.NewModulesFeature(svc.eventBus,
 		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
-		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.fs)
+		svc.stateStore.Roots, svc.stateStore.TerraformVersions, svc.fs, rootModulesFeature)
 	if err != nil {
 		return err
 	}
@@ -571,9 +581,10 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 
 	// TODO? check if we still need this
 	svc.features = &Features{
-		Modules:   modulesFeature,
-		Variables: variablesFeature,
-		Stacks:    stacksFeature,
+		Modules:     modulesFeature,
+		RootModules: rootModulesFeature,
+		Stacks:      stacksFeature,
+		Variables:   variablesFeature,
 	}
 
 	svc.decoder = decoder.NewDecoder(&idecoder.GlobalPathReader{
