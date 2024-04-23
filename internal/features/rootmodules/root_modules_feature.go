@@ -55,7 +55,7 @@ func (f *RootModulesFeature) SetLogger(logger *log.Logger) {
 	f.store.SetLogger(logger)
 }
 
-func (f *RootModulesFeature) Run(ctx context.Context) {
+func (f *RootModulesFeature) Start(ctx context.Context) {
 	ctx, cancelFunc := context.WithCancel(ctx)
 	f.stopFunc = cancelFunc
 
@@ -75,6 +75,11 @@ func (f *RootModulesFeature) Run(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (f *RootModulesFeature) Stop() {
+	f.stopFunc()
+	f.logger.Print("stopped root modules feature")
 }
 
 func (f *RootModulesFeature) Discover(path string, files []string) error {

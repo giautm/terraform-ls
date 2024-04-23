@@ -551,7 +551,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 		return err
 	}
 	rootModulesFeature.SetLogger(svc.logger)
-	rootModulesFeature.Run(svc.sessCtx)
+	rootModulesFeature.Start(svc.sessCtx)
 
 	modulesFeature, err := fmodules.NewModulesFeature(svc.eventBus,
 		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules,
@@ -560,14 +560,14 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 		return err
 	}
 	modulesFeature.SetLogger(svc.logger)
-	modulesFeature.Run(svc.sessCtx)
+	modulesFeature.Start(svc.sessCtx)
 
 	variablesFeature, err := fvariables.NewVariablesFeature(svc.eventBus, svc.stateStore.JobStore, svc.fs)
 	if err != nil {
 		return err
 	}
 	variablesFeature.SetLogger(svc.logger)
-	variablesFeature.Run(svc.sessCtx)
+	variablesFeature.Start(svc.sessCtx)
 
 	stacksFeature, err := fstacks.NewStacksFeature(
 		svc.logger,
@@ -577,7 +577,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	if err != nil {
 		return err
 	}
-	stacksFeature.Run(svc.sessCtx)
+	stacksFeature.Start(svc.sessCtx)
 
 	// TODO? check if we still need this
 	svc.features = &Features{
@@ -638,6 +638,19 @@ func (svc *service) shutdown() {
 	}
 	if svc.highPrioIndexer != nil {
 		svc.highPrioIndexer.Stop()
+	}
+
+	if svc.features.Modules != nil {
+		svc.features.Modules.Stop()
+	}
+	if svc.features.RootModules != nil {
+		svc.features.RootModules.Stop()
+	}
+	if svc.features.Stacks != nil {
+		svc.features.Stacks.Stop()
+	}
+	if svc.features.Variables != nil {
+		svc.features.Variables.Stop()
 	}
 }
 

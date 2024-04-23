@@ -45,7 +45,7 @@ func NewStacksFeature(logger *log.Logger, eventbus *eventbus.EventBus, jobStore 
 	}, nil
 }
 
-func (f *StacksFeature) Run(ctx context.Context) {
+func (f *StacksFeature) Start(ctx context.Context) {
 	ctx, cancelFunc := context.WithCancel(ctx)
 	f.stopFunc = cancelFunc
 
@@ -65,6 +65,11 @@ func (f *StacksFeature) Run(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (f *StacksFeature) Stop() {
+	f.stopFunc()
+	f.logger.Print("stopped modules feature")
 }
 
 func (f *StacksFeature) DidOpen(ctx context.Context, dir document.DirHandle, languageID string) (job.IDs, error) {

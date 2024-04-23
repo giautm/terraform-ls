@@ -52,7 +52,7 @@ func (f *VariablesFeature) SetLogger(logger *log.Logger) {
 	f.store.SetLogger(logger)
 }
 
-func (f *VariablesFeature) Run(ctx context.Context) {
+func (f *VariablesFeature) Start(ctx context.Context) {
 	ctx, cancelFunc := context.WithCancel(ctx)
 	f.stopFunc = cancelFunc
 
@@ -72,6 +72,11 @@ func (f *VariablesFeature) Run(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (f *VariablesFeature) Stop() {
+	f.stopFunc()
+	f.logger.Print("stopped modules feature")
 }
 
 func (f *VariablesFeature) DidOpen(ctx context.Context, dir document.DirHandle, languageID string) (job.IDs, error) {
