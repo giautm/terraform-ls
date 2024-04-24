@@ -41,8 +41,11 @@ func (svc *service) TextDocumentSemanticTokensFull(ctx context.Context, params l
 		return tks, err
 	}
 
-	// TODO check if there are jobs in flight for this dh
-	// TODO wait on jobs
+	jobIds, err := svc.stateStore.JobStore.ListIncompleteJobsForDir(dh.Dir)
+	if err != nil {
+		return tks, err
+	}
+	svc.stateStore.JobStore.WaitForJobs(ctx, jobIds...)
 
 	tokens, err := d.SemanticTokensInFile(ctx, doc.Filename)
 	if err != nil {

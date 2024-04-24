@@ -27,8 +27,11 @@ func (svc *service) TextDocumentHover(ctx context.Context, params lsp.TextDocume
 		return nil, err
 	}
 
-	// TODO check if there are jobs in flight for this dh
-	// TODO wait on jobs
+	jobIds, err := svc.stateStore.JobStore.ListIncompleteJobsForDir(dh.Dir)
+	if err != nil {
+		return nil, err
+	}
+	svc.stateStore.JobStore.WaitForJobs(ctx, jobIds...)
 
 	pos, err := ilsp.HCLPositionFromLspPosition(params.Position, doc)
 	if err != nil {

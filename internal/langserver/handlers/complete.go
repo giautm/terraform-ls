@@ -30,8 +30,11 @@ func (svc *service) TextDocumentComplete(ctx context.Context, params lsp.Complet
 		return list, err
 	}
 
-	// TODO check if there are jobs in flight for this dh
-	// TODO wait on jobs or timeout
+	jobIds, err := svc.stateStore.JobStore.ListIncompleteJobsForDir(dh.Dir)
+	if err != nil {
+		return list, err
+	}
+	svc.stateStore.JobStore.WaitForJobs(ctx, jobIds...)
 
 	expFeatures, err := lsctx.ExperimentalFeatures(ctx)
 	if err != nil {
