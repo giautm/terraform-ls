@@ -27,13 +27,15 @@ func (pr *PathReader) Paths(ctx context.Context) []lang.Path {
 	paths := make([]lang.Path, 0)
 
 	stacksRecords, err := pr.StateReader.List()
-	if err == nil {
-		for _, record := range stacksRecords {
-			paths = append(paths, lang.Path{
-				Path:       record.Path(),
-				LanguageID: ilsp.Stacks.String(),
-			})
-		}
+	if err != nil {
+		return paths
+	}
+
+	for _, record := range stacksRecords {
+		paths = append(paths, lang.Path{
+			Path:       record.Path(),
+			LanguageID: ilsp.Stacks.String(),
+		})
 	}
 
 	return paths

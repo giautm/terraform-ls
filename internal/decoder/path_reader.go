@@ -24,7 +24,9 @@ var _ decoder.PathReader = &GlobalPathReader{}
 func (mr *GlobalPathReader) Paths(ctx context.Context) []lang.Path {
 	paths := make([]lang.Path, 0)
 
-	// TODO
+	for _, feature := range mr.PathReaderMap {
+		paths = append(paths, feature.Paths(ctx)...)
+	}
 
 	return paths
 }

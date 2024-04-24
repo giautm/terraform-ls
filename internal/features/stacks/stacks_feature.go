@@ -119,9 +119,9 @@ func (f *StacksFeature) PathContext(path lang.Path) (*decoder.PathContext, error
 }
 
 func (f *StacksFeature) Paths(ctx context.Context) []lang.Path {
-	paths := make([]lang.Path, 0)
+	pathReader := &fdecoder.PathReader{
+		StateReader: f.store,
+	}
 
-	// TODO
-
-	return paths
+	return pathReader.Paths(ctx)
 }

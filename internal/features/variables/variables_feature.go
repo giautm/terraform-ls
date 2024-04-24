@@ -92,9 +92,10 @@ func (f *VariablesFeature) PathContext(path lang.Path) (*decoder.PathContext, er
 }
 
 func (f *VariablesFeature) Paths(ctx context.Context) []lang.Path {
-	paths := make([]lang.Path, 0)
+	pathReader := &fdecoder.PathReader{
+		StateReader:  f.store,
+		ModuleReader: f.moduleFeature,
+	}
 
-	// TODO
-
-	return paths
+	return pathReader.Paths(ctx)
 }

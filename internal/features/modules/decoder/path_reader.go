@@ -48,13 +48,15 @@ func (pr *PathReader) Paths(ctx context.Context) []lang.Path {
 	paths := make([]lang.Path, 0)
 
 	moduleRecords, err := pr.StateReader.List()
-	if err == nil {
-		for _, record := range moduleRecords {
-			paths = append(paths, lang.Path{
-				Path:       record.Path(),
-				LanguageID: ilsp.Terraform.String(),
-			})
-		}
+	if err != nil {
+		return paths
+	}
+
+	for _, record := range moduleRecords {
+		paths = append(paths, lang.Path{
+			Path:       record.Path(),
+			LanguageID: ilsp.Terraform.String(),
+		})
 	}
 
 	return paths

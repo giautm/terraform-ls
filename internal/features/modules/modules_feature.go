@@ -106,11 +106,12 @@ func (f *ModulesFeature) PathContext(path lang.Path) (*decoder.PathContext, erro
 }
 
 func (f *ModulesFeature) Paths(ctx context.Context) []lang.Path {
-	paths := make([]lang.Path, 0)
+	pathReader := &fdecoder.PathReader{
+		StateReader: f.store,
+		RootReader:  f.rootFeature,
+	}
 
-	// TODO
-
-	return paths
+	return pathReader.Paths(ctx)
 }
 
 func (f *ModulesFeature) DeclaredModuleCalls(modPath string) (map[string]tfmod.DeclaredModuleCall, error) {
