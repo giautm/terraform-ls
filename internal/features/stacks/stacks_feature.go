@@ -69,7 +69,7 @@ func (f *StacksFeature) Start(ctx context.Context) {
 
 func (f *StacksFeature) Stop() {
 	f.stopFunc()
-	f.logger.Print("stopped modules feature")
+	f.logger.Print("stopped stacks feature")
 }
 
 func (f *StacksFeature) DidOpen(ctx context.Context, dir document.DirHandle, languageID string) (job.IDs, error) {

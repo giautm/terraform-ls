@@ -10,14 +10,11 @@ import (
 
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
-	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	fdecoder "github.com/hashicorp/terraform-ls/internal/features/variables/decoder"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/jobs"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/state"
-	"github.com/hashicorp/terraform-ls/internal/job"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
-	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
 type VariablesFeature struct {
@@ -60,14 +57,18 @@ func (f *VariablesFeature) Start(ctx context.Context) {
 
 	didOpen := f.eventbus.OnDidOpen("feature.variables")
 	didChange := f.eventbus.OnDidChange("feature.variables")
+	discover := f.eventbus.OnDiscover("feature.variables")
 	go func() {
 		for {
 			select {
 			case open := <-didOpen:
-				f.DidOpen(open.Context, open.Dir, open.LanguageID)
+				f.didOpen(open.Context, open.Dir, open.LanguageID)
 			case didChange := <-didChange:
 				// TODO move into own handler
-				f.DidOpen(didChange.Context, didChange.Dir, didChange.LanguageID)
+				f.didOpen(didChange.Context, didChange.Dir, didChange.LanguageID)
+			case discover := <-discover:
+				// TODO collect errors
+				f.discover(discover.Path, discover.Files)
 
 			case <-ctx.Done():
 				return
@@ -78,54 +79,7 @@ func (f *VariablesFeature) Start(ctx context.Context) {
 
 func (f *VariablesFeature) Stop() {
 	f.stopFunc()
-	f.logger.Print("stopped modules feature")
-}
-
-func (f *VariablesFeature) DidOpen(ctx context.Context, dir document.DirHandle, languageID string) (job.IDs, error) {
-	ids := make(job.IDs, 0)
-	path := dir.Path()
-
-	// Add to state if language ID matches
-	if languageID == "terraform-vars" {
-		err := f.store.AddIfNotExists(path)
-		if err != nil {
-			return ids, err
-		}
-	}
-
-	// Schedule jobs if state entry exists
-	hasVariableRecord := f.store.Exists(path)
-	if !hasVariableRecord {
-		return ids, nil
-	}
-
-	parseVarsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: dir,
-		Func: func(ctx context.Context) error {
-			return jobs.ParseVariables(ctx, f.fs, f.store, path)
-		},
-		Type:        op.OpTypeParseVariables.String(),
-		IgnoreState: true,
-	})
-	if err != nil {
-		return ids, err
-	}
-	ids = append(ids, parseVarsId)
-
-	varsRefsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
-		Dir: dir,
-		Func: func(ctx context.Context) error {
-			return jobs.DecodeVarsReferences(ctx, f.store, f.moduleFeature, path)
-		},
-		Type:      op.OpTypeDecodeVarsReferences.String(),
-		DependsOn: job.IDs{parseVarsId},
-	})
-	if err != nil {
-		return ids, err
-	}
-	ids = append(ids, varsRefsId)
-
-	return ids, nil
+	f.logger.Print("stopped variables feature")
 }
 
 func (f *VariablesFeature) PathContext(path lang.Path) (*decoder.PathContext, error) {
