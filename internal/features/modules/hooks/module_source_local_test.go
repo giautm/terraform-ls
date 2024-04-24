@@ -11,7 +11,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	"github.com/hashicorp/terraform-ls/internal/features/modules/state"
+	globalState "github.com/hashicorp/terraform-ls/internal/state"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -23,13 +24,17 @@ func TestHooks_LocalModuleSources(t *testing.T) {
 		Path:       tmpDir,
 		LanguageID: "terraform",
 	})
-	s, err := state.NewStateStore()
+	s, err := globalState.NewStateStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := state.NewModuleStore(s.ProviderSchemas, s.RegistryModules)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	h := &Hooks{
-		ModStore: s.Modules,
+		ModStore: store,
 	}
 
 	modules := []string{
@@ -44,7 +49,7 @@ func TestHooks_LocalModuleSources(t *testing.T) {
 	}
 
 	for _, mod := range modules {
-		err := s.Modules.Add(mod)
+		err := store.Add(mod)
 		if err != nil {
 			t.Fatal(err)
 		}

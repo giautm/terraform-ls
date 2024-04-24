@@ -606,7 +606,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 		},
 	})
 	decoderContext := idecoder.DecoderContext(ctx)
-	svc.AppendCompletionHooks(decoderContext)
+	modulesFeature.AppendCompletionHooks(svc.srvCtx, decoderContext)
 	svc.decoder.SetContext(decoderContext)
 
 	return nil

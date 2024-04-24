@@ -21,7 +21,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	"github.com/hashicorp/terraform-ls/internal/features/modules/state"
+	globalState "github.com/hashicorp/terraform-ls/internal/state"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -81,7 +82,11 @@ func (r *testRequester) Request(req *http.Request) (*http.Response, error) {
 func TestHooks_RegistryModuleSources(t *testing.T) {
 	ctx := context.Background()
 
-	s, err := state.NewStateStore()
+	s, err := globalState.NewStateStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := state.NewModuleStore(s.ProviderSchemas, s.RegistryModules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +110,7 @@ func TestHooks_RegistryModuleSources(t *testing.T) {
 	}))
 
 	h := &Hooks{
-		ModStore:      s.Modules,
+		ModStore:      store,
 		AlgoliaClient: searchClient,
 		Logger:        log.New(io.Discard, "", 0),
 	}
@@ -172,7 +177,11 @@ func TestHooks_RegistryModuleSourcesCtxCancel(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(ctx, 50*time.Millisecond)
 	t.Cleanup(cancelFunc)
 
-	s, err := state.NewStateStore()
+	s, err := globalState.NewStateStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := state.NewModuleStore(s.ProviderSchemas, s.RegistryModules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +192,7 @@ func TestHooks_RegistryModuleSourcesCtxCancel(t *testing.T) {
 	}))
 
 	h := &Hooks{
-		ModStore:      s.Modules,
+		ModStore:      store,
 		AlgoliaClient: searchClient,
 		Logger:        log.New(io.Discard, "", 0),
 	}
@@ -202,7 +211,11 @@ func TestHooks_RegistryModuleSourcesCtxCancel(t *testing.T) {
 func TestHooks_RegistryModuleSourcesIgnore(t *testing.T) {
 	ctx := context.Background()
 
-	s, err := state.NewStateStore()
+	s, err := globalState.NewStateStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := state.NewModuleStore(s.ProviderSchemas, s.RegistryModules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +225,7 @@ func TestHooks_RegistryModuleSourcesIgnore(t *testing.T) {
 	}))
 
 	h := &Hooks{
-		ModStore:      s.Modules,
+		ModStore:      store,
 		AlgoliaClient: searchClient,
 		Logger:        log.New(io.Discard, "", 0),
 	}

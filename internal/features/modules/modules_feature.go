@@ -8,11 +8,14 @@ import (
 	"io"
 	"log"
 
+	"github.com/algolia/algoliasearch-client-go/v3/algolia/search"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
+	"github.com/hashicorp/terraform-ls/internal/algolia"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	fdecoder "github.com/hashicorp/terraform-ls/internal/features/modules/decoder"
+	"github.com/hashicorp/terraform-ls/internal/features/modules/hooks"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/jobs"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/registry"
@@ -139,4 +142,21 @@ func (f *ModulesFeature) ModuleInputs(modPath string) (map[string]tfmod.Variable
 	}
 
 	return mod.Meta.Variables, nil
+}
+
+func (f *ModulesFeature) AppendCompletionHooks(srvCtx context.Context, decoderContext decoder.DecoderContext) {
+	h := hooks.Hooks{
+		ModStore:       f.store,
+		RegistryClient: f.registryClient,
+		Logger:         f.logger,
+	}
+
+	credentials, ok := algolia.CredentialsFromContext(srvCtx)
+	if ok {
+		h.AlgoliaClient = search.NewClient(credentials.AppID, credentials.APIKey)
+	}
+
+	decoderContext.CompletionHooks["CompleteLocalModuleSources"] = h.LocalModuleSources
+	decoderContext.CompletionHooks["CompleteRegistryModuleSources"] = h.RegistryModuleSources
+	decoderContext.CompletionHooks["CompleteRegistryModuleVersions"] = h.RegistryModuleVersions
 }

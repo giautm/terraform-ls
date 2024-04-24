@@ -14,8 +14,9 @@ import (
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/terraform-ls/internal/features/modules/state"
 	"github.com/hashicorp/terraform-ls/internal/registry"
-	"github.com/hashicorp/terraform-ls/internal/state"
+	globalState "github.com/hashicorp/terraform-ls/internal/state"
 	tfaddr "github.com/hashicorp/terraform-registry-address"
 	tfmod "github.com/hashicorp/terraform-schema/module"
 	"github.com/zclconf/go-cty/cty"
@@ -55,7 +56,11 @@ func TestHooks_RegistryModuleVersions(t *testing.T) {
 	})
 	ctx = decoder.WithFilename(ctx, "main.tf")
 	ctx = decoder.WithMaxCandidates(ctx, 3)
-	s, err := state.NewStateStore()
+	s, err := globalState.NewStateStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := state.NewModuleStore(s.ProviderSchemas, s.RegistryModules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,11 +77,11 @@ func TestHooks_RegistryModuleVersions(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	h := &Hooks{
-		ModStore:       s.Modules,
+		ModStore:       store,
 		RegistryClient: regClient,
 	}
 
-	err = s.Modules.Add(tmpDir)
+	err = store.Add(tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +99,7 @@ func TestHooks_RegistryModuleVersions(t *testing.T) {
 			},
 		},
 	}
-	err = s.Modules.UpdateMetadata(tmpDir, metadata, nil)
+	err = store.UpdateMetadata(tmpDir, metadata, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
