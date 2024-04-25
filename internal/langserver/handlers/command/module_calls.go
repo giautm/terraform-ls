@@ -62,11 +62,11 @@ func (h *CmdHandler) ModuleCallsHandler(ctx context.Context, args cmd.CommandArg
 		return response, err
 	}
 
-	declared, err := h.FeatureReader.DeclaredModuleCalls(modPath)
+	declared, err := h.ModulesFeature.DeclaredModuleCalls(modPath)
 	if err != nil {
 		return response, err
 	}
-	installed, err := h.FeatureReader.InstalledModuleCalls(modPath)
+	installed, err := h.RootModulesFeature.InstalledModuleCalls(modPath)
 	if err != nil {
 		return response, err
 	}

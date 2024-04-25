@@ -48,7 +48,7 @@ func (h *CmdHandler) ModuleProvidersHandler(ctx context.Context, args cmd.Comman
 		return response, err
 	}
 
-	providerRequirements, err := h.FeatureReader.ProviderRequirements(modPath)
+	providerRequirements, err := h.ModulesFeature.ProviderRequirements(modPath)
 	if err != nil {
 		return response, err
 	}
@@ -64,7 +64,7 @@ func (h *CmdHandler) ModuleProvidersHandler(ctx context.Context, args cmd.Comman
 		}
 	}
 
-	installedProviders, err := h.FeatureReader.InstalledProviders(modPath)
+	installedProviders, err := h.RootModulesFeature.InstalledProviders(modPath)
 	if err != nil {
 		return response, err
 	}

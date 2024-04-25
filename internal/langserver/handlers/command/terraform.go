@@ -48,12 +48,12 @@ func (h *CmdHandler) TerraformVersionRequestHandler(ctx context.Context, args cm
 
 	progress.Report(ctx, "Recording terraform version info ...")
 
-	terraformVersion := h.FeatureReader.TerraformVersion(modPath)
+	terraformVersion := h.RootModulesFeature.TerraformVersion(modPath)
 	if terraformVersion != nil {
 		response.DiscoveredVersion = terraformVersion.String()
 	}
 
-	coreRequirements, err := h.FeatureReader.CoreRequirements(modPath)
+	coreRequirements, err := h.ModulesFeature.CoreRequirements(modPath)
 	if err != nil {
 		return response, err
 	}

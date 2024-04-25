@@ -39,7 +39,7 @@ func (h *CmdHandler) ModuleCallersHandler(ctx context.Context, args cmd.CommandA
 		return nil, err
 	}
 
-	modCallers, err := h.FeatureReader.CallersOfModule(modPath)
+	modCallers, err := h.RootModulesFeature.CallersOfModule(modPath)
 	if err != nil {
 		return nil, err
 	}
