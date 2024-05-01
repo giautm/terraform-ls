@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/features/rootmodules/jobs"
 	"github.com/hashicorp/terraform-ls/internal/features/rootmodules/state"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
+	"github.com/hashicorp/terraform-ls/internal/terraform/datadir"
 	"github.com/hashicorp/terraform-ls/internal/terraform/exec"
 	tfaddr "github.com/hashicorp/terraform-registry-address"
 	tfmod "github.com/hashicorp/terraform-schema/module"
@@ -103,4 +104,9 @@ func (f *RootModulesFeature) InstalledProviders(modPath string) (map[tfaddr.Prov
 
 func (f *RootModulesFeature) CallersOfModule(modPath string) ([]string, error) {
 	return f.store.CallersOfModule(modPath)
+}
+
+
+func (f *RootModulesFeature) UpdateModManifest(path string, manifest *datadir.ModuleManifest, mErr error) error {
+	return f.store.UpdateModManifest(path, manifest, mErr)
 }

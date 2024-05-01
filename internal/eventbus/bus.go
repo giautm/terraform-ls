@@ -14,19 +14,21 @@ const ChannelSize = 10
 type EventBus struct {
 	logger *log.Logger
 
-	didOpenTopic   *Topic[DidOpenEvent]
-	didChangeTopic *Topic[DidChangeEvent]
-	discoverTopic  *Topic[DiscoverEvent]
+	didOpenTopic          *Topic[DidOpenEvent]
+	didChangeTopic        *Topic[DidChangeEvent]
+	didChangeWatchedTopic *Topic[DidChangeWatchedEvent]
+	discoverTopic         *Topic[DiscoverEvent]
 }
 
 func NewEventBus() *EventBus {
 	discardLogger := log.New(io.Discard, "", 0)
 
 	return &EventBus{
-		logger:         discardLogger,
-		didOpenTopic:   NewTopic[DidOpenEvent](),
-		didChangeTopic: NewTopic[DidChangeEvent](),
-		discoverTopic:  NewTopic[DiscoverEvent](),
+		logger:                discardLogger,
+		didOpenTopic:          NewTopic[DidOpenEvent](),
+		didChangeTopic:        NewTopic[DidChangeEvent](),
+		didChangeWatchedTopic: NewTopic[DidChangeWatchedEvent](),
+		discoverTopic:         NewTopic[DiscoverEvent](),
 	}
 }
 

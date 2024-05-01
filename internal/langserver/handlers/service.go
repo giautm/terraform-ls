@@ -547,7 +547,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	rootModulesFeature.SetLogger(svc.logger)
 	rootModulesFeature.Start(svc.sessCtx)
 
-	modulesFeature, err := fmodules.NewModulesFeature(svc.eventBus, svc.stateStore.JobStore,
+	modulesFeature, err := fmodules.NewModulesFeature(svc.eventBus, svc.stateStore.DocumentStore, svc.stateStore.JobStore,
 		svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules, svc.fs, rootModulesFeature)
 	if err != nil {
 		return err

@@ -30,6 +30,7 @@ type ModulesFeature struct {
 	logger   *log.Logger
 
 	rootFeature          fdecoder.RootReader
+	documentStore        *globalState.DocumentStore
 	jobStore             *globalState.JobStore
 	providerSchemasStore *globalState.ProviderSchemaStore
 	registryModuleStore  *globalState.RegistryModuleStore
@@ -38,7 +39,8 @@ type ModulesFeature struct {
 	fs             jobs.ReadOnlyFS
 }
 
-func NewModulesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, fs jobs.ReadOnlyFS, rootFeature fdecoder.RootReader) (*ModulesFeature, error) {
+func NewModulesFeature(eventbus *eventbus.EventBus, documentStore *globalState.DocumentStore, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore,
+	registryModuleStore *globalState.RegistryModuleStore, fs jobs.ReadOnlyFS, rootFeature fdecoder.RootReader) (*ModulesFeature, error) {
 	store, err := state.NewModuleStore(providerSchemasStore, registryModuleStore)
 	if err != nil {
 		return nil, err
@@ -50,6 +52,7 @@ func NewModulesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobSto
 		eventbus:             eventbus,
 		stopFunc:             func() {},
 		logger:               discardLogger,
+		documentStore:        documentStore,
 		jobStore:             jobStore,
 		rootFeature:          rootFeature,
 		providerSchemasStore: providerSchemasStore,
@@ -69,6 +72,7 @@ func (f *ModulesFeature) Start(ctx context.Context) {
 
 	didOpen := f.eventbus.OnDidOpen("feature.modules")
 	didChange := f.eventbus.OnDidChange("feature.modules")
+	didChangeWatched := f.eventbus.OnDidChangeWatched("feature.modules")
 	discover := f.eventbus.OnDiscover("feature.modules")
 	go func() {
 		for {
@@ -80,6 +84,10 @@ func (f *ModulesFeature) Start(ctx context.Context) {
 				// TODO move into own handler
 				// TODO collect errors
 				f.didOpen(didChange.Context, didChange.Dir, didChange.LanguageID)
+			case didChangeWatched := <-didChangeWatched:
+				// TODO move into own handler
+				// TODO collect errors
+				f.didChangeWatched(didChangeWatched.Context, didChangeWatched.FileURI, didChangeWatched.ChangeType)
 			case discover := <-discover:
 				// TODO collect errors
 				f.discover(discover.Path, discover.Files)
