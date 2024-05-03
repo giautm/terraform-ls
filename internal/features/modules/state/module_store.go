@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
-	"time"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl-lang/reference"
+	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/ast"
 	"github.com/hashicorp/terraform-ls/internal/state"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
@@ -29,15 +29,13 @@ type ModuleStore struct {
 	tableName string
 	logger    *log.Logger
 
-	// TimeProvider provides current time (for mocking time.Now in tests)
-	TimeProvider func() time.Time
-
 	// MaxModuleNesting represents how many nesting levels we'd attempt
 	// to parse provider requirements before returning error.
 	MaxModuleNesting int
 
 	providerSchemasStore *globalState.ProviderSchemaStore
 	registryModuleStore  *globalState.RegistryModuleStore
+	changeStore          *globalState.ChangeStore
 }
 
 func (s *ModuleStore) SetLogger(logger *log.Logger) {
@@ -97,10 +95,10 @@ func (s *ModuleStore) add(txn *memdb.Txn, modPath string) error {
 		return err
 	}
 
-	// err = s.queueModuleChange(txn, nil, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueModuleChange(nil, mod)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -119,11 +117,11 @@ func (s *ModuleStore) Remove(modPath string) error {
 		return nil
 	}
 
-	// oldMod := oldObj.(*ModuleRecord)
-	// err = s.queueModuleChange(txn, oldMod, nil)
-	// if err != nil {
-	// 	return err
-	// }
+	oldMod := oldObj.(*ModuleRecord)
+	err = s.queueModuleChange(oldMod, nil)
+	if err != nil {
+		return err
+	}
 
 	_, err = txn.DeleteAll(s.tableName, "id", modPath)
 	if err != nil {
@@ -387,10 +385,10 @@ func (s *ModuleStore) FinishProviderSchemaLoading(path string, psErr error) erro
 		return err
 	}
 
-	// err = s.queueModuleChange(txn, oldMod, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueModuleChange(oldMod, mod)
+	if err != nil {
+		return err
+	}
 
 	txn.Commit()
 	return nil
@@ -468,10 +466,10 @@ func (s *ModuleStore) UpdateMetadata(path string, meta *tfmod.Meta, mErr error) 
 		return err
 	}
 
-	// err = s.queueModuleChange(txn, oldMod, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueModuleChange(oldMod, mod)
+	if err != nil {
+		return err
+	}
 
 	txn.Commit()
 	return nil
@@ -500,10 +498,10 @@ func (s *ModuleStore) UpdateModuleDiagnostics(path string, source globalAst.Diag
 		return err
 	}
 
-	// err = s.queueModuleChange(txn, oldMod, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueModuleChange(oldMod, mod)
+	if err != nil {
+		return err
+	}
 
 	txn.Commit()
 	return nil
@@ -620,4 +618,112 @@ func (s *ModuleStore) RegistryModuleMeta(addr tfaddr.Module, cons version.Constr
 
 func (s *ModuleStore) ProviderSchema(modPath string, addr tfaddr.Provider, vc version.Constraints) (*tfschema.ProviderSchema, error) {
 	return s.providerSchemasStore.ProviderSchema(modPath, addr, vc)
+}
+
+func (s *ModuleStore) queueModuleChange(oldMod, newMod *ModuleRecord) error {
+	changes := globalState.Changes{}
+
+	switch {
+	// new module added
+	case oldMod == nil && newMod != nil:
+		if len(newMod.Meta.CoreRequirements) > 0 {
+			changes.CoreRequirements = true
+		}
+		if newMod.Meta.Cloud != nil {
+			changes.Cloud = true
+		}
+		if newMod.Meta.Backend != nil {
+			changes.Backend = true
+		}
+		if len(newMod.Meta.ProviderRequirements) > 0 {
+			changes.ProviderRequirements = true
+		}
+		// if newMod.TerraformVersion != nil {
+		// 	cb.Changes.TerraformVersion = true
+		// }
+		// if len(newMod.InstalledProviders) > 0 {
+		// 	cb.Changes.InstalledProviders = true
+		// }
+	// module removed
+	case oldMod != nil && newMod == nil:
+		changes.IsRemoval = true
+
+		if len(oldMod.Meta.CoreRequirements) > 0 {
+			changes.CoreRequirements = true
+		}
+		if oldMod.Meta.Cloud != nil {
+			changes.Cloud = true
+		}
+		if oldMod.Meta.Backend != nil {
+			changes.Backend = true
+		}
+		if len(oldMod.Meta.ProviderRequirements) > 0 {
+			changes.ProviderRequirements = true
+		}
+		// if oldMod.TerraformVersion != nil {
+		// 	cb.Changes.TerraformVersion = true
+		// }
+		// if len(oldMod.InstalledProviders) > 0 {
+		// 	cb.Changes.InstalledProviders = true
+		// }
+	// module changed
+	default:
+		if !oldMod.Meta.CoreRequirements.Equals(newMod.Meta.CoreRequirements) {
+			changes.CoreRequirements = true
+		}
+		if !oldMod.Meta.Backend.Equals(newMod.Meta.Backend) {
+			changes.Backend = true
+		}
+		if !oldMod.Meta.Cloud.Equals(newMod.Meta.Cloud) {
+			changes.Cloud = true
+		}
+		if !oldMod.Meta.ProviderRequirements.Equals(newMod.Meta.ProviderRequirements) {
+			changes.ProviderRequirements = true
+		}
+		// if !oldMod.TerraformVersion.Equal(newMod.TerraformVersion) {
+		// 	cb.Changes.TerraformVersion = true
+		// }
+		// if !oldMod.InstalledProviders.Equals(newMod.InstalledProviders) {
+		// 	cb.Changes.InstalledProviders = true
+		// }
+	}
+
+	oldDiags, newDiags := 0, 0
+	if oldMod != nil {
+		oldDiags = oldMod.ModuleDiagnostics.Count() //+ oldMod.VarsDiagnostics.Count()
+	}
+	if newMod != nil {
+		newDiags = newMod.ModuleDiagnostics.Count() //+ newMod.VarsDiagnostics.Count()
+	}
+	// Comparing diagnostics accurately could be expensive
+	// so we just treat any non-empty diags as a change
+	if oldDiags > 0 || newDiags > 0 {
+		changes.Diagnostics = true
+	}
+
+	oldOrigins, oldTargets := 0, 0
+	if oldMod != nil {
+		oldOrigins = len(oldMod.RefOrigins)
+		oldTargets = len(oldMod.RefTargets)
+	}
+	newOrigins, newTargets := 0, 0
+	if newMod != nil {
+		newOrigins = len(newMod.RefOrigins)
+		newTargets = len(newMod.RefTargets)
+	}
+	if oldOrigins != newOrigins {
+		changes.ReferenceOrigins = true
+	}
+	if oldTargets != newTargets {
+		changes.ReferenceTargets = true
+	}
+
+	var modHandle document.DirHandle
+	if oldMod != nil {
+		modHandle = document.DirHandleFromPath(oldMod.Path())
+	} else {
+		modHandle = document.DirHandleFromPath(newMod.Path())
+	}
+
+	return s.changeStore.QueueChange(modHandle, changes)
 }

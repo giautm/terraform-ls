@@ -5,6 +5,7 @@ package rootmodules
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/features/rootmodules/jobs"
 	"github.com/hashicorp/terraform-ls/internal/features/rootmodules/state"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
+	"github.com/hashicorp/terraform-ls/internal/telemetry"
 	"github.com/hashicorp/terraform-ls/internal/terraform/datadir"
 	"github.com/hashicorp/terraform-ls/internal/terraform/exec"
 	tfaddr "github.com/hashicorp/terraform-registry-address"
@@ -25,12 +27,13 @@ type RootModulesFeature struct {
 	stopFunc context.CancelFunc
 	logger   *log.Logger
 
-	tfExecFactory exec.ExecutorFactory
-	jobStore      *globalState.JobStore
-	fs            jobs.ReadOnlyFS
+	tfExecFactory        exec.ExecutorFactory
+	jobStore             *globalState.JobStore
+	providerSchemasStore *globalState.ProviderSchemaStore
+	fs                   jobs.ReadOnlyFS
 }
 
-func NewRootModulesFeature(eventbus *eventbus.EventBus, tfExecFactory exec.ExecutorFactory, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS) (*RootModulesFeature, error) {
+func NewRootModulesFeature(eventbus *eventbus.EventBus, tfExecFactory exec.ExecutorFactory, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, fs jobs.ReadOnlyFS) (*RootModulesFeature, error) {
 	store, err := state.NewRootStore()
 	if err != nil {
 		return nil, err
@@ -38,13 +41,14 @@ func NewRootModulesFeature(eventbus *eventbus.EventBus, tfExecFactory exec.Execu
 	discardLogger := log.New(io.Discard, "", 0)
 
 	return &RootModulesFeature{
-		store:         store,
-		eventbus:      eventbus,
-		stopFunc:      func() {},
-		logger:        discardLogger,
-		tfExecFactory: tfExecFactory,
-		jobStore:      jobStore,
-		fs:            fs,
+		store:                store,
+		eventbus:             eventbus,
+		stopFunc:             func() {},
+		logger:               discardLogger,
+		tfExecFactory:        tfExecFactory,
+		jobStore:             jobStore,
+		providerSchemasStore: providerSchemasStore,
+		fs:                   fs,
 	}, nil
 }
 
@@ -106,7 +110,43 @@ func (f *RootModulesFeature) CallersOfModule(modPath string) ([]string, error) {
 	return f.store.CallersOfModule(modPath)
 }
 
-
 func (f *RootModulesFeature) UpdateModManifest(path string, manifest *datadir.ModuleManifest, mErr error) error {
 	return f.store.UpdateModManifest(path, manifest, mErr)
+}
+
+func (f *RootModulesFeature) Telemetry(path string) map[string]interface{} {
+	properties := make(map[string]interface{})
+
+	record, err := f.store.RootRecordByPath(path)
+	if err != nil {
+		return properties
+	}
+
+	if record.TerraformVersion != nil {
+		properties["tfVersion"] = record.TerraformVersion.String()
+	}
+	if len(record.InstalledProviders) > 0 {
+		installedProviders := make(map[string]string, 0)
+		for pAddr, pv := range record.InstalledProviders {
+			if telemetry.IsPublicProvider(pAddr) {
+				versionString := ""
+				if pv != nil {
+					versionString = pv.String()
+				}
+				installedProviders[pAddr.String()] = versionString
+				continue
+			}
+
+			// anonymize any unknown providers or the ones not publicly listed
+			id, err := f.providerSchemasStore.GetProviderID(pAddr)
+			if err != nil {
+				continue
+			}
+			addr := fmt.Sprintf("unlisted/%s", id)
+			installedProviders[addr] = ""
+		}
+		properties["installedProviders"] = installedProviders
+	}
+
+	return properties
 }

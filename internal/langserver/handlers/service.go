@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"time"
 
@@ -88,7 +88,7 @@ type service struct {
 	singleFileMode bool
 }
 
-var discardLogs = log.New(ioutil.Discard, "", 0)
+var discardLogs = log.New(io.Discard, "", 0)
 
 func NewSession(srvCtx context.Context) session.Session {
 	d := &discovery.Discovery{}
@@ -481,11 +481,6 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 
 	svc.stateStore.SetLogger(svc.logger)
 
-	// moduleHooks := []notifier.Hook{
-	// updateDiagnostics(svc.diagsNotifier),
-	// sendModuleTelemetry(svc.stateStore, svc.telemetry),
-	// }
-
 	svc.lowPrioIndexer = scheduler.NewScheduler(svc.stateStore.JobStore, 1, job.LowPriority)
 	svc.lowPrioIndexer.SetLogger(svc.logger)
 	svc.lowPrioIndexer.Start(svc.sessCtx)
@@ -495,33 +490,6 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.highPrioIndexer.SetLogger(svc.logger)
 	svc.highPrioIndexer.Start(svc.sessCtx)
 	svc.logger.Printf("started high priority scheduler")
-
-	// cc, err := ilsp.ClientCapabilities(ctx)
-	// if err == nil {
-	// 	if _, ok := lsp.ExperimentalClientCapabilities(cc.Experimental).ShowReferencesCommandId(); ok {
-	// 		moduleHooks = append(moduleHooks, refreshCodeLens(svc.server))
-	// 	}
-
-	// 	if commandId, ok := lsp.ExperimentalClientCapabilities(cc.Experimental).RefreshModuleProvidersCommandId(); ok {
-	// 		moduleHooks = append(moduleHooks, callRefreshClientCommand(svc.server, commandId))
-	// 	}
-
-	// 	if commandId, ok := lsp.ExperimentalClientCapabilities(cc.Experimental).RefreshModuleCallsCommandId(); ok {
-	// 		moduleHooks = append(moduleHooks, callRefreshClientCommand(svc.server, commandId))
-	// 	}
-
-	// 	if commandId, ok := lsp.ExperimentalClientCapabilities(cc.Experimental).RefreshTerraformVersionCommandId(); ok {
-	// 		moduleHooks = append(moduleHooks, callRefreshClientCommand(svc.server, commandId))
-	// 	}
-
-	// 	if cc.Workspace.SemanticTokens != nil && cc.Workspace.SemanticTokens.RefreshSupport {
-	// 		moduleHooks = append(moduleHooks, refreshSemanticTokens(svc.server))
-	// 	}
-	// }
-
-	// svc.notifier = notifier.NewNotifier(moduleHooks)
-	// svc.notifier.SetLogger(svc.logger)
-	// svc.notifier.Start(svc.sessCtx)
 
 	svc.fs = filesystem.NewFilesystem(svc.stateStore.DocumentStore)
 	svc.fs.SetLogger(svc.logger)
@@ -540,7 +508,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.openDirWalker.SetLogger(svc.logger)
 
 	rootModulesFeature, err := frootmodules.NewRootModulesFeature(svc.eventBus, svc.tfExecFactory,
-		svc.stateStore.JobStore, svc.fs)
+		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.fs)
 	if err != nil {
 		return err
 	}
@@ -548,7 +516,8 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	rootModulesFeature.Start(svc.sessCtx)
 
 	modulesFeature, err := fmodules.NewModulesFeature(svc.eventBus, svc.stateStore.DocumentStore, svc.stateStore.JobStore,
-		svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules, svc.fs, rootModulesFeature)
+		svc.stateStore.ProviderSchemas, svc.stateStore.RegistryModules, svc.stateStore.ChangeStore,
+		svc.fs, rootModulesFeature)
 	if err != nil {
 		return err
 	}
@@ -591,6 +560,38 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	decoderContext := idecoder.DecoderContext(ctx)
 	modulesFeature.AppendCompletionHooks(svc.srvCtx, decoderContext)
 	svc.decoder.SetContext(decoderContext)
+
+	moduleHooks := []notifier.Hook{
+		updateDiagnostics(svc.features, svc.diagsNotifier),
+		sendModuleTelemetry(svc.features, svc.telemetry),
+	}
+
+	cc, err := ilsp.ClientCapabilities(ctx)
+	if err == nil {
+		if _, ok := lsp.ExperimentalClientCapabilities(cc.Experimental).ShowReferencesCommandId(); ok {
+			moduleHooks = append(moduleHooks, refreshCodeLens(svc.server))
+		}
+
+		if commandId, ok := lsp.ExperimentalClientCapabilities(cc.Experimental).RefreshModuleProvidersCommandId(); ok {
+			moduleHooks = append(moduleHooks, callRefreshClientCommand(svc.server, commandId))
+		}
+
+		if commandId, ok := lsp.ExperimentalClientCapabilities(cc.Experimental).RefreshModuleCallsCommandId(); ok {
+			moduleHooks = append(moduleHooks, callRefreshClientCommand(svc.server, commandId))
+		}
+
+		if commandId, ok := lsp.ExperimentalClientCapabilities(cc.Experimental).RefreshTerraformVersionCommandId(); ok {
+			moduleHooks = append(moduleHooks, callRefreshClientCommand(svc.server, commandId))
+		}
+
+		if cc.Workspace.SemanticTokens != nil && cc.Workspace.SemanticTokens.RefreshSupport {
+			moduleHooks = append(moduleHooks, refreshSemanticTokens(svc.server))
+		}
+	}
+
+	svc.notifier = notifier.NewNotifier(svc.stateStore.ChangeStore, moduleHooks)
+	svc.notifier.SetLogger(svc.logger)
+	svc.notifier.Start(svc.sessCtx)
 
 	return nil
 }

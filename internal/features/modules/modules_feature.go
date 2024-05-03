@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 
@@ -18,8 +19,11 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/features/modules/hooks"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/jobs"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/state"
+	"github.com/hashicorp/terraform-ls/internal/langserver/diagnostics"
 	"github.com/hashicorp/terraform-ls/internal/registry"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
+	"github.com/hashicorp/terraform-ls/internal/telemetry"
+	"github.com/hashicorp/terraform-schema/backend"
 	tfmod "github.com/hashicorp/terraform-schema/module"
 )
 
@@ -40,8 +44,8 @@ type ModulesFeature struct {
 }
 
 func NewModulesFeature(eventbus *eventbus.EventBus, documentStore *globalState.DocumentStore, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore,
-	registryModuleStore *globalState.RegistryModuleStore, fs jobs.ReadOnlyFS, rootFeature fdecoder.RootReader) (*ModulesFeature, error) {
-	store, err := state.NewModuleStore(providerSchemasStore, registryModuleStore)
+	registryModuleStore *globalState.RegistryModuleStore, changeStore *globalState.ChangeStore, fs jobs.ReadOnlyFS, rootFeature fdecoder.RootReader) (*ModulesFeature, error) {
+	store, err := state.NewModuleStore(providerSchemasStore, registryModuleStore, changeStore)
 	if err != nil {
 		return nil, err
 	}
@@ -168,4 +172,96 @@ func (f *ModulesFeature) AppendCompletionHooks(srvCtx context.Context, decoderCo
 	decoderContext.CompletionHooks["CompleteLocalModuleSources"] = h.LocalModuleSources
 	decoderContext.CompletionHooks["CompleteRegistryModuleSources"] = h.RegistryModuleSources
 	decoderContext.CompletionHooks["CompleteRegistryModuleVersions"] = h.RegistryModuleVersions
+}
+
+func (f *ModulesFeature) Diagnostics(path string) diagnostics.Diagnostics {
+	diags := diagnostics.NewDiagnostics()
+
+	mod, err := f.store.ModuleRecordByPath(path)
+	if err != nil {
+		return diags
+	}
+
+	for source, dm := range mod.ModuleDiagnostics {
+		diags.Append(source, dm.AutoloadedOnly().AsMap())
+	}
+
+	return diags
+}
+
+func (f *ModulesFeature) Telemetry(path string) map[string]interface{} {
+	properties := make(map[string]interface{})
+
+	mod, err := f.store.ModuleRecordByPath(path)
+	if err != nil {
+		return properties
+	}
+
+	if len(mod.Meta.CoreRequirements) > 0 {
+		properties["tfRequirements"] = mod.Meta.CoreRequirements.String()
+	}
+	if mod.Meta.Cloud != nil {
+		properties["cloud"] = true
+
+		hostname := mod.Meta.Cloud.Hostname
+
+		// https://developer.hashicorp.com/terraform/language/settings/terraform-cloud#usage-example
+		// Required for Terraform Enterprise;
+		// Defaults to app.terraform.io for HCP Terraform
+		if hostname == "" {
+			hostname = "app.terraform.io"
+		}
+
+		// anonymize any non-default hostnames
+		if hostname != "app.terraform.io" {
+			hostname = "custom-hostname"
+		}
+
+		properties["cloud.hostname"] = hostname
+	}
+	if mod.Meta.Backend != nil {
+		properties["backend"] = mod.Meta.Backend.Type
+		if data, ok := mod.Meta.Backend.Data.(*backend.Remote); ok {
+			hostname := data.Hostname
+
+			// https://developer.hashicorp.com/terraform/language/settings/backends/remote#hostname
+			// Defaults to app.terraform.io for HCP Terraform
+			if hostname == "" {
+				hostname = "app.terraform.io"
+			}
+
+			// anonymize any non-default hostnames
+			if hostname != "app.terraform.io" {
+				hostname = "custom-hostname"
+			}
+
+			properties["backend.remote.hostname"] = hostname
+		}
+	}
+	if len(mod.Meta.ProviderRequirements) > 0 {
+		reqs := make(map[string]string, 0)
+		for pAddr, cons := range mod.Meta.ProviderRequirements {
+			if telemetry.IsPublicProvider(pAddr) {
+				reqs[pAddr.String()] = cons.String()
+				continue
+			}
+
+			// anonymize any unknown providers or the ones not publicly listed
+			id, err := f.providerSchemasStore.GetProviderID(pAddr)
+			if err != nil {
+				continue
+			}
+			addr := fmt.Sprintf("unlisted/%s", id)
+			reqs[addr] = cons.String()
+		}
+		properties["providerRequirements"] = reqs
+	}
+
+	modId, err := f.store.GetModuleID(mod.Path())
+	if err != nil {
+		return properties
+	}
+	properties["moduleId"] = modId
+
+	return properties
 }

@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	changesTableName        = "changes"
 	documentsTableName      = "documents"
 	jobsTableName           = "jobs"
 	providerSchemaTableName = "provider_schema"
@@ -28,6 +29,20 @@ const (
 
 var dbSchema = &memdb.DBSchema{
 	Tables: map[string]*memdb.TableSchema{
+		changesTableName: {
+			Name: changesTableName,
+			Indexes: map[string]*memdb.IndexSchema{
+				"id": {
+					Name:    "id",
+					Unique:  true,
+					Indexer: &DirHandleFieldIndexer{Field: "DirHandle"},
+				},
+				"time": {
+					Name:    "time",
+					Indexer: &TimeFieldIndex{Field: "FirstChangeTime"},
+				},
+			},
+		},
 		documentsTableName: {
 			Name: documentsTableName,
 			Indexes: map[string]*memdb.IndexSchema{
@@ -183,6 +198,7 @@ var dbSchema = &memdb.DBSchema{
 }
 
 type StateStore struct {
+	ChangeStore     *ChangeStore
 	DocumentStore   *DocumentStore
 	JobStore        *JobStore
 	ProviderSchemas *ProviderSchemaStore
@@ -192,6 +208,14 @@ type StateStore struct {
 	db *memdb.MemDB
 }
 
+type ChangeStore struct {
+	db        *memdb.MemDB
+	tableName string
+	logger    *log.Logger
+
+	// TimeProvider provides current time (for mocking time.Now in tests)
+	TimeProvider func() time.Time
+}
 type ProviderSchemaStore struct {
 	db        *memdb.MemDB
 	tableName string
@@ -215,6 +239,12 @@ func NewStateStore() (*StateStore, error) {
 
 	return &StateStore{
 		db: db,
+		ChangeStore: &ChangeStore{
+			db:           db,
+			tableName:    changesTableName,
+			logger:       defaultLogger,
+			TimeProvider: time.Now,
+		},
 		DocumentStore: &DocumentStore{
 			db:           db,
 			tableName:    documentsTableName,
@@ -249,6 +279,7 @@ func NewStateStore() (*StateStore, error) {
 }
 
 func (s *StateStore) SetLogger(logger *log.Logger) {
+	s.ChangeStore.logger = logger
 	s.DocumentStore.logger = logger
 	s.JobStore.logger = logger
 	s.ProviderSchemas.logger = logger

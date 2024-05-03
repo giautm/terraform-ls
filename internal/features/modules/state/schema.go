@@ -6,17 +6,14 @@ package state
 import (
 	"io"
 	"log"
-	"time"
 
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/terraform-ls/internal/state"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
 )
 
 const (
-	moduleTableName        = "module"
-	moduleIdsTableName     = "module_ids"
-	moduleChangesTableName = "module_changes"
+	moduleTableName    = "module"
+	moduleIdsTableName = "module_ids"
 )
 
 var dbSchema = &memdb.DBSchema{
@@ -41,24 +38,10 @@ var dbSchema = &memdb.DBSchema{
 				},
 			},
 		},
-		moduleChangesTableName: {
-			Name: moduleChangesTableName,
-			Indexes: map[string]*memdb.IndexSchema{
-				"id": {
-					Name:    "id",
-					Unique:  true,
-					Indexer: &state.DirHandleFieldIndexer{Field: "DirHandle"},
-				},
-				"time": {
-					Name:    "time",
-					Indexer: &state.TimeFieldIndex{Field: "FirstChangeTime"},
-				},
-			},
-		},
 	},
 }
 
-func NewModuleStore(providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore) (*ModuleStore, error) {
+func NewModuleStore(providerSchemasStore *globalState.ProviderSchemaStore, registryModuleStore *globalState.RegistryModuleStore, changeStore *globalState.ChangeStore) (*ModuleStore, error) {
 	db, err := memdb.NewMemDB(dbSchema)
 	if err != nil {
 		return nil, err
@@ -70,8 +53,8 @@ func NewModuleStore(providerSchemasStore *globalState.ProviderSchemaStore, regis
 		db:                   db,
 		tableName:            moduleTableName,
 		logger:               discardLogger,
-		TimeProvider:         time.Now,
 		MaxModuleNesting:     50,
+		changeStore:          changeStore,
 		providerSchemasStore: providerSchemasStore,
 		registryModuleStore:  registryModuleStore,
 	}, nil

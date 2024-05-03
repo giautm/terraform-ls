@@ -105,3 +105,9 @@ func (d Diagnostics) Append(src ast.DiagnosticSource, diagsMap map[string]hcl.Di
 
 	return d
 }
+
+func (d Diagnostics) Extend(diags Diagnostics) Diagnostics {
+	// TODO! implement
+
+	return d
+}
