@@ -44,7 +44,7 @@ type ModulesFeature struct {
 }
 
 func NewModulesFeature(eventbus *eventbus.EventBus, documentStore *globalState.DocumentStore, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore,
-	registryModuleStore *globalState.RegistryModuleStore, changeStore *globalState.ChangeStore, fs jobs.ReadOnlyFS, rootFeature fdecoder.RootReader) (*ModulesFeature, error) {
+	registryModuleStore *globalState.RegistryModuleStore, changeStore *globalState.ChangeStore, fs jobs.ReadOnlyFS, rootFeature fdecoder.RootReader, registryClient registry.Client) (*ModulesFeature, error) {
 	store, err := state.NewModuleStore(providerSchemasStore, registryModuleStore, changeStore)
 	if err != nil {
 		return nil, err
@@ -62,6 +62,7 @@ func NewModulesFeature(eventbus *eventbus.EventBus, documentStore *globalState.D
 		providerSchemasStore: providerSchemasStore,
 		registryModuleStore:  registryModuleStore,
 		fs:                   fs,
+		registryClient:       registryClient,
 	}, nil
 }
 
