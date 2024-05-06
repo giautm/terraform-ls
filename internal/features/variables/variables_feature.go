@@ -14,6 +14,7 @@ import (
 	fdecoder "github.com/hashicorp/terraform-ls/internal/features/variables/decoder"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/jobs"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/state"
+	"github.com/hashicorp/terraform-ls/internal/langserver/diagnostics"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
 )
 
@@ -98,4 +99,19 @@ func (f *VariablesFeature) Paths(ctx context.Context) []lang.Path {
 	}
 
 	return pathReader.Paths(ctx)
+}
+
+func (f *VariablesFeature) Diagnostics(path string) diagnostics.Diagnostics {
+	diags := diagnostics.NewDiagnostics()
+
+	mod, err := f.store.VariableRecordByPath(path)
+	if err != nil {
+		return diags
+	}
+
+	for source, dm := range mod.VarsDiagnostics {
+		diags.Append(source, dm.AutoloadedOnly().AsMap())
+	}
+
+	return diags
 }

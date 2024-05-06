@@ -55,8 +55,7 @@ func updateDiagnostics(features *Features, dNotifier *diagnostics.Notifier) noti
 			diags.EmptyRootDiagnostic()
 
 			diags.Extend(features.Modules.Diagnostics(path))
-			// TODO! vars
-			// TODO! stacks
+			diags.Extend(features.Variables.Diagnostics(path))
 
 			dNotifier.PublishHCLDiags(ctx, path, diags)
 		}
@@ -80,7 +79,7 @@ func callRefreshClientCommand(clientRequester session.ClientCaller, commandId st
 
 			_, err = clientRequester.Callback(ctx, commandId, nil)
 			if err != nil {
-				return fmt.Errorf("Error calling %s for %s: %s", commandId, path, err)
+				return fmt.Errorf("error calling %s for %s: %s", commandId, path, err)
 			}
 		}
 
@@ -119,7 +118,7 @@ func refreshSemanticTokens(clientRequester session.ClientCaller) notifier.Hook {
 
 			_, err = clientRequester.Callback(ctx, "workspace/semanticTokens/refresh", nil)
 			if err != nil {
-				return fmt.Errorf("Error refreshing %s: %s", path, err)
+				return fmt.Errorf("error refreshing %s: %s", path, err)
 			}
 		}
 
