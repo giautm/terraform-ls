@@ -28,8 +28,8 @@ type VariablesFeature struct {
 	fs            jobs.ReadOnlyFS
 }
 
-func NewVariablesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobStore, fs jobs.ReadOnlyFS, moduleFeature fdecoder.ModuleReader) (*VariablesFeature, error) {
-	store, err := state.NewVariableStore()
+func NewVariablesFeature(eventbus *eventbus.EventBus, jobStore *globalState.JobStore, changeStore *globalState.ChangeStore, fs jobs.ReadOnlyFS, moduleFeature fdecoder.ModuleReader) (*VariablesFeature, error) {
+	store, err := state.NewVariableStore(changeStore)
 	if err != nil {
 		return nil, err
 	}

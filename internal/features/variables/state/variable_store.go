@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/hcl-lang/reference"
+	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/ast"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
 	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
@@ -18,17 +19,19 @@ type VariableStore struct {
 	db        *memdb.MemDB
 	tableName string
 	logger    *log.Logger
+
+	changeStore *globalState.ChangeStore
 }
 
 func (s *VariableStore) SetLogger(logger *log.Logger) {
 	s.logger = logger
 }
 
-func (s *VariableStore) Add(modPath string) error {
+func (s *VariableStore) Add(path string) error {
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	err := s.add(txn, modPath)
+	err := s.add(txn, path)
 	if err != nil {
 		return err
 	}
@@ -37,29 +40,28 @@ func (s *VariableStore) Add(modPath string) error {
 	return nil
 }
 
-func (s *VariableStore) add(txn *memdb.Txn, modPath string) error {
+func (s *VariableStore) add(txn *memdb.Txn, path string) error {
 	// TODO: Introduce Exists method to Txn?
-	obj, err := txn.First(s.tableName, "id", modPath)
+	obj, err := txn.First(s.tableName, "id", path)
 	if err != nil {
 		return err
 	}
 	if obj != nil {
 		return &globalState.AlreadyExistsError{
-			Idx: modPath,
+			Idx: path,
 		}
 	}
 
-	mod := newVariableRecord(modPath)
-	err = txn.Insert(s.tableName, mod)
+	record := newVariableRecord(path)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
 
-	// TODO! queue change
-	// err = s.queueModuleChange(txn, nil, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueRecordChange(nil, record)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -85,11 +87,11 @@ func (s *VariableStore) AddIfNotExists(path string) error {
 	return nil
 }
 
-func (s *VariableStore) Remove(modPath string) error {
+func (s *VariableStore) Remove(path string) error {
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	oldObj, err := txn.First(s.tableName, "id", modPath)
+	oldObj, err := txn.First(s.tableName, "id", path)
 	if err != nil {
 		return err
 	}
@@ -99,14 +101,13 @@ func (s *VariableStore) Remove(modPath string) error {
 		return nil
 	}
 
-	// TODO! queue change
-	// oldMod := oldObj.(*VariableRecord)
-	// err = s.queueModuleChange(txn, oldMod, nil)
-	// if err != nil {
-	// 	return err
-	// }
+	oldRecord := oldObj.(*VariableRecord)
+	err = s.queueRecordChange(oldRecord, nil)
+	if err != nil {
+		return err
+	}
 
-	_, err = txn.DeleteAll(s.tableName, "id", modPath)
+	_, err = txn.DeleteAll(s.tableName, "id", path)
 	if err != nil {
 		return err
 	}
@@ -146,12 +147,12 @@ func (s *VariableStore) Exists(path string) bool {
 func (s *VariableStore) VariableRecordByPath(path string) (*VariableRecord, error) {
 	txn := s.db.Txn(false)
 
-	mod, err := variableRecordByPath(txn, path)
+	record, err := variableRecordByPath(txn, path)
 	if err != nil {
 		return nil, err
 	}
 
-	return mod, nil
+	return record, nil
 }
 
 func variableRecordByPath(txn *memdb.Txn, path string) (*VariableRecord, error) {
@@ -180,16 +181,15 @@ func (s *VariableStore) UpdateParsedVarsFiles(path string, vFiles ast.VarsFiles,
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	mod, err := variableRecordCopyByPath(txn, path)
+	record, err := variableRecordCopyByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod.ParsedVarsFiles = vFiles
+	record.ParsedVarsFiles = vFiles
+	record.VarsParsingErr = vErr
 
-	mod.VarsParsingErr = vErr
-
-	err = txn.Insert(s.tableName, mod)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
@@ -205,27 +205,26 @@ func (s *VariableStore) UpdateVarsDiagnostics(path string, source globalAst.Diag
 	})
 	defer txn.Abort()
 
-	oldMod, err := variableRecordByPath(txn, path)
+	oldRecord, err := variableRecordByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod := oldMod.Copy()
-	if mod.VarsDiagnostics == nil {
-		mod.VarsDiagnostics = make(ast.SourceVarsDiags)
+	record := oldRecord.Copy()
+	if record.VarsDiagnostics == nil {
+		record.VarsDiagnostics = make(ast.SourceVarsDiags)
 	}
-	mod.VarsDiagnostics[source] = diags
+	record.VarsDiagnostics[source] = diags
 
-	err = txn.Insert(s.tableName, mod)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
 
-	// TODO! queue change
-	// err = s.queueModuleChange(txn, oldMod, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueRecordChange(oldRecord, record)
+	if err != nil {
+		return err
+	}
 
 	txn.Commit()
 	return nil
@@ -235,13 +234,13 @@ func (s *VariableStore) SetVarsDiagnosticsState(path string, source globalAst.Di
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	mod, err := variableRecordCopyByPath(txn, path)
+	record, err := variableRecordCopyByPath(txn, path)
 	if err != nil {
 		return err
 	}
-	mod.VarsDiagnosticsState[source] = state
+	record.VarsDiagnosticsState[source] = state
 
-	err = txn.Insert(s.tableName, mod)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
@@ -254,13 +253,13 @@ func (s *VariableStore) SetVarsReferenceOriginsState(path string, state op.OpSta
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	mod, err := variableRecordCopyByPath(txn, path)
+	record, err := variableRecordCopyByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod.VarsRefOriginsState = state
-	err = txn.Insert(s.tableName, mod)
+	record.VarsRefOriginsState = state
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
@@ -276,19 +275,57 @@ func (s *VariableStore) UpdateVarsReferenceOrigins(path string, origins referenc
 	})
 	defer txn.Abort()
 
-	mod, err := variableRecordCopyByPath(txn, path)
+	record, err := variableRecordCopyByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod.VarsRefOrigins = origins
-	mod.VarsRefOriginsErr = roErr
+	record.VarsRefOrigins = origins
+	record.VarsRefOriginsErr = roErr
 
-	err = txn.Insert(s.tableName, mod)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
 
 	txn.Commit()
 	return nil
+}
+
+func (s *VariableStore) queueRecordChange(oldRecord, newRecord *VariableRecord) error {
+	changes := globalState.Changes{}
+
+	oldDiags, newDiags := 0, 0
+	if oldRecord != nil {
+		oldDiags = oldRecord.VarsDiagnostics.Count()
+	}
+	if newRecord != nil {
+		newDiags = newRecord.VarsDiagnostics.Count()
+	}
+	// Comparing diagnostics accurately could be expensive
+	// so we just treat any non-empty diags as a change
+	if oldDiags > 0 || newDiags > 0 {
+		changes.Diagnostics = true
+	}
+
+	oldOrigins := 0
+	if oldRecord != nil {
+		oldOrigins = len(oldRecord.VarsRefOrigins)
+	}
+	newOrigins := 0
+	if newRecord != nil {
+		newOrigins = len(newRecord.VarsRefOrigins)
+	}
+	if oldOrigins != newOrigins {
+		changes.ReferenceOrigins = true
+	}
+
+	var dir document.DirHandle
+	if oldRecord != nil {
+		dir = document.DirHandleFromPath(oldRecord.Path())
+	} else {
+		dir = document.DirHandleFromPath(newRecord.Path())
+	}
+
+	return s.changeStore.QueueChange(dir, changes)
 }
