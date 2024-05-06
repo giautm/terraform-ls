@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-version"
+	"github.com/hashicorp/terraform-ls/internal/document"
 	globalState "github.com/hashicorp/terraform-ls/internal/state"
 	"github.com/hashicorp/terraform-ls/internal/terraform/datadir"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
@@ -37,7 +38,7 @@ func (m *RootRecord) Copy() *RootRecord {
 	if m == nil {
 		return nil
 	}
-	newMod := &RootRecord{
+	newRecord := &RootRecord{
 		path: m.path,
 
 		ModManifest:      m.ModManifest.Copy(),
@@ -54,23 +55,23 @@ func (m *RootRecord) Copy() *RootRecord {
 	}
 
 	if m.InstalledProviders != nil {
-		newMod.InstalledProviders = make(InstalledProviders, 0)
+		newRecord.InstalledProviders = make(InstalledProviders, 0)
 		for addr, pv := range m.InstalledProviders {
 			// version.Version is practically immutable once parsed
-			newMod.InstalledProviders[addr] = pv
+			newRecord.InstalledProviders[addr] = pv
 		}
 	}
 
-	return newMod
+	return newRecord
 }
 
 func (m *RootRecord) Path() string {
 	return m.path
 }
 
-func newRootRecord(modPath string) *RootRecord {
+func newRootRecord(path string) *RootRecord {
 	return &RootRecord{
-		path:                    modPath,
+		path:                    path,
 		ModManifestState:        op.OpStateUnknown,
 		TerraformVersionState:   op.OpStateUnknown,
 		InstalledProvidersState: op.OpStateUnknown,
@@ -84,11 +85,11 @@ func NewRootRecordTest(path string) *RootRecord {
 	}
 }
 
-func (s *RootStore) Add(modPath string) error {
+func (s *RootStore) Add(path string) error {
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	err := s.add(txn, modPath)
+	err := s.add(txn, path)
 	if err != nil {
 		return err
 	}
@@ -97,20 +98,20 @@ func (s *RootStore) Add(modPath string) error {
 	return nil
 }
 
-func (s *RootStore) add(txn *memdb.Txn, modPath string) error {
+func (s *RootStore) add(txn *memdb.Txn, path string) error {
 	// TODO: Introduce Exists method to Txn?
-	obj, err := txn.First(s.tableName, "id", modPath)
+	obj, err := txn.First(s.tableName, "id", path)
 	if err != nil {
 		return err
 	}
 	if obj != nil {
 		return &globalState.AlreadyExistsError{
-			Idx: modPath,
+			Idx: path,
 		}
 	}
 
-	mod := newRootRecord(modPath)
-	err = txn.Insert(s.tableName, mod)
+	record := newRootRecord(path)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
@@ -118,11 +119,11 @@ func (s *RootStore) add(txn *memdb.Txn, modPath string) error {
 	return nil
 }
 
-func (s *RootStore) Remove(modPath string) error {
+func (s *RootStore) Remove(path string) error {
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	oldObj, err := txn.First(s.tableName, "id", modPath)
+	oldObj, err := txn.First(s.tableName, "id", path)
 	if err != nil {
 		return err
 	}
@@ -132,7 +133,7 @@ func (s *RootStore) Remove(modPath string) error {
 		return nil
 	}
 
-	_, err = txn.DeleteAll(s.tableName, "id", modPath)
+	_, err = txn.DeleteAll(s.tableName, "id", path)
 	if err != nil {
 		return err
 	}
@@ -144,12 +145,12 @@ func (s *RootStore) Remove(modPath string) error {
 func (s *RootStore) RootRecordByPath(path string) (*RootRecord, error) {
 	txn := s.db.Txn(false)
 
-	mod, err := rootRecordByPath(txn, path)
+	record, err := rootRecordByPath(txn, path)
 	if err != nil {
 		return nil, err
 	}
 
-	return mod, nil
+	return record, nil
 }
 
 func (s *RootStore) AddIfNotExists(path string) error {
@@ -213,25 +214,24 @@ func (s *RootStore) UpdateInstalledProviders(path string, pvs map[tfaddr.Provide
 	})
 	defer txn.Abort()
 
-	oldMod, err := rootRecordByPath(txn, path)
+	oldRecord, err := rootRecordByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod := oldMod.Copy()
-	mod.InstalledProviders = pvs
-	mod.InstalledProvidersErr = pvErr
+	record := oldRecord.Copy()
+	record.InstalledProviders = pvs
+	record.InstalledProvidersErr = pvErr
 
-	err = txn.Insert(s.tableName, mod)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
 
-	// TODO! queue module change
-	// err = s.queueModuleChange(txn, oldMod, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueRecordChange(oldRecord, record)
+	if err != nil {
+		return err
+	}
 
 	// TODO! update provider versions
 	// err = updateProviderVersions(txn, path, pvs)
@@ -247,14 +247,14 @@ func (s *RootStore) SetInstalledProvidersState(path string, state op.OpState) er
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	mod, err := rootRecordCopyByPath(txn, path)
+	record, err := rootRecordCopyByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod.InstalledProvidersState = state
+	record.InstalledProvidersState = state
 
-	err = txn.Insert(s.tableName, mod)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
@@ -267,14 +267,14 @@ func (s *RootStore) SetModManifestState(path string, state op.OpState) error {
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	mod, err := rootRecordCopyByPath(txn, path)
+	record, err := rootRecordCopyByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod.ModManifestState = state
+	record.ModManifestState = state
 
-	err = txn.Insert(s.tableName, mod)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
@@ -290,24 +290,23 @@ func (s *RootStore) UpdateModManifest(path string, manifest *datadir.ModuleManif
 	})
 	defer txn.Abort()
 
-	mod, err := rootRecordCopyByPath(txn, path)
+	record, err := rootRecordCopyByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod.ModManifest = manifest
-	mod.ModManifestErr = mErr
+	record.ModManifest = manifest
+	record.ModManifestErr = mErr
 
-	err = txn.Insert(s.tableName, mod)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
 
-	// TODO! queue module change
-	// err = s.queueModuleChange(txn, nil, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueRecordChange(nil, record)
+	if err != nil {
+		return err
+	}
 
 	txn.Commit()
 	return nil
@@ -317,53 +316,51 @@ func (s *RootStore) SetTerraformVersionState(path string, state op.OpState) erro
 	txn := s.db.Txn(true)
 	defer txn.Abort()
 
-	mod, err := rootRecordCopyByPath(txn, path)
+	record, err := rootRecordCopyByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod.TerraformVersionState = state
-	err = txn.Insert(s.tableName, mod)
+	record.TerraformVersionState = state
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
 
-	// TODO! queue module change
-	// err = s.queueModuleChange(txn, nil, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueRecordChange(nil, record)
+	if err != nil {
+		return err
+	}
 
 	txn.Commit()
 	return nil
 }
 
-func (s *RootStore) UpdateTerraformAndProviderVersions(modPath string, tfVer *version.Version, pv map[tfaddr.Provider]*version.Version, vErr error) error {
+func (s *RootStore) UpdateTerraformAndProviderVersions(path string, tfVer *version.Version, pv map[tfaddr.Provider]*version.Version, vErr error) error {
 	txn := s.db.Txn(true)
 	txn.Defer(func() {
-		s.SetTerraformVersionState(modPath, op.OpStateLoaded)
+		s.SetTerraformVersionState(path, op.OpStateLoaded)
 	})
 	defer txn.Abort()
 
-	oldMod, err := rootRecordByPath(txn, modPath)
+	oldRecord, err := rootRecordByPath(txn, path)
 	if err != nil {
 		return err
 	}
 
-	mod := oldMod.Copy()
-	mod.TerraformVersion = tfVer
-	mod.TerraformVersionErr = vErr
+	record := oldRecord.Copy()
+	record.TerraformVersion = tfVer
+	record.TerraformVersionErr = vErr
 
-	err = txn.Insert(s.tableName, mod)
+	err = txn.Insert(s.tableName, record)
 	if err != nil {
 		return err
 	}
 
-	// TODO! queue module change
-	// err = s.queueModuleChange(txn, oldMod, mod)
-	// if err != nil {
-	// 	return err
-	// }
+	err = s.queueRecordChange(oldRecord, record)
+	if err != nil {
+		return err
+	}
 
 	// TODO! update provider versions
 	// err = updateProviderVersions(txn, modPath, pv)
@@ -375,7 +372,7 @@ func (s *RootStore) UpdateTerraformAndProviderVersions(modPath string, tfVer *ve
 	return nil
 }
 
-func (s *RootStore) CallersOfModule(modPath string) ([]string, error) {
+func (s *RootStore) CallersOfModule(path string) ([]string, error) {
 	txn := s.db.Txn(false)
 	it, err := txn.Get(s.tableName, "id")
 	if err != nil {
@@ -389,7 +386,7 @@ func (s *RootStore) CallersOfModule(modPath string) ([]string, error) {
 		if record.ModManifest == nil {
 			continue
 		}
-		if record.ModManifest.ContainsLocalModule(modPath) {
+		if record.ModManifest.ContainsLocalModule(path) {
 			callers = append(callers, record.path)
 		}
 	}
@@ -397,15 +394,15 @@ func (s *RootStore) CallersOfModule(modPath string) ([]string, error) {
 	return callers, nil
 }
 
-func (s *RootStore) InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error) {
-	mod, err := s.RootRecordByPath(modPath)
+func (s *RootStore) InstalledModuleCalls(path string) (map[string]tfmod.InstalledModuleCall, error) {
+	record, err := s.RootRecordByPath(path)
 	if err != nil {
 		return map[string]tfmod.InstalledModuleCall{}, err
 	}
 
 	installed := make(map[string]tfmod.InstalledModuleCall)
-	if mod.ModManifest != nil {
-		for _, record := range mod.ModManifest.Records {
+	if record.ModManifest != nil {
+		for _, record := range record.ModManifest.Records {
 			if record.IsRoot() {
 				continue
 			}
@@ -413,10 +410,52 @@ func (s *RootStore) InstalledModuleCalls(modPath string) (map[string]tfmod.Insta
 				LocalName:  record.Key,
 				SourceAddr: record.SourceAddr,
 				Version:    record.Version,
-				Path:       filepath.Join(modPath, record.Dir),
+				Path:       filepath.Join(path, record.Dir),
 			}
 		}
 	}
 
 	return installed, err
+}
+
+func (s *RootStore) queueRecordChange(oldRecord, newRecord *RootRecord) error {
+	changes := globalState.Changes{}
+
+	switch {
+	// new record added
+	case oldRecord == nil && newRecord != nil:
+		if newRecord.TerraformVersion != nil {
+			changes.TerraformVersion = true
+		}
+		if len(newRecord.InstalledProviders) > 0 {
+			changes.InstalledProviders = true
+		}
+	// record removed
+	case oldRecord != nil && newRecord == nil:
+		changes.IsRemoval = true
+
+		if oldRecord.TerraformVersion != nil {
+			changes.TerraformVersion = true
+		}
+		if len(oldRecord.InstalledProviders) > 0 {
+			changes.InstalledProviders = true
+		}
+	// record changed
+	default:
+		if !oldRecord.TerraformVersion.Equal(newRecord.TerraformVersion) {
+			changes.TerraformVersion = true
+		}
+		if !oldRecord.InstalledProviders.Equals(newRecord.InstalledProviders) {
+			changes.InstalledProviders = true
+		}
+	}
+
+	var dir document.DirHandle
+	if oldRecord != nil {
+		dir = document.DirHandleFromPath(oldRecord.Path())
+	} else {
+		dir = document.DirHandleFromPath(newRecord.Path())
+	}
+
+	return s.changeStore.QueueChange(dir, changes)
 }

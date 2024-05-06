@@ -8,6 +8,7 @@ import (
 	"log"
 
 	"github.com/hashicorp/go-memdb"
+	globalState "github.com/hashicorp/terraform-ls/internal/state"
 )
 
 const rootTableName = "root"
@@ -27,7 +28,7 @@ var dbSchema = &memdb.DBSchema{
 	},
 }
 
-func NewRootStore() (*RootStore, error) {
+func NewRootStore(changeStore *globalState.ChangeStore) (*RootStore, error) {
 	db, err := memdb.NewMemDB(dbSchema)
 	if err != nil {
 		return nil, err
@@ -36,8 +37,9 @@ func NewRootStore() (*RootStore, error) {
 	discardLogger := log.New(io.Discard, "", 0)
 
 	return &RootStore{
-		db:        db,
-		tableName: rootTableName,
-		logger:    discardLogger,
+		db:          db,
+		tableName:   rootTableName,
+		logger:      discardLogger,
+		changeStore: changeStore,
 	}, nil
 }

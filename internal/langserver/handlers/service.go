@@ -508,7 +508,7 @@ func (svc *service) configureSessionDependencies(ctx context.Context, cfgOpts *s
 	svc.openDirWalker.SetLogger(svc.logger)
 
 	rootModulesFeature, err := frootmodules.NewRootModulesFeature(svc.eventBus, svc.tfExecFactory,
-		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.fs)
+		svc.stateStore.JobStore, svc.stateStore.ProviderSchemas, svc.stateStore.ChangeStore, svc.fs)
 	if err != nil {
 		return err
 	}

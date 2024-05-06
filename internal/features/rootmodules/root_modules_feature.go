@@ -33,8 +33,8 @@ type RootModulesFeature struct {
 	fs                   jobs.ReadOnlyFS
 }
 
-func NewRootModulesFeature(eventbus *eventbus.EventBus, tfExecFactory exec.ExecutorFactory, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, fs jobs.ReadOnlyFS) (*RootModulesFeature, error) {
-	store, err := state.NewRootStore()
+func NewRootModulesFeature(eventbus *eventbus.EventBus, tfExecFactory exec.ExecutorFactory, jobStore *globalState.JobStore, providerSchemasStore *globalState.ProviderSchemaStore, changeStore *globalState.ChangeStore, fs jobs.ReadOnlyFS) (*RootModulesFeature, error) {
+	store, err := state.NewRootStore(changeStore)
 	if err != nil {
 		return nil, err
 	}
