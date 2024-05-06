@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/features/stacks/state"
 	"github.com/hashicorp/terraform-ls/internal/job"
 	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
@@ -61,14 +62,14 @@ func ParseStack(
 	// TODO: Avoid parsing if the content matches existing AST
 
 	// Avoid parsing if it is already in progress or already known
-	if stack.StacksDiagnosticsState[ast.HCLParsingSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
+	if stack.StacksDiagnosticsState[globalAst.HCLParsingSource] != op.OpStateUnknown && !job.IgnoreState(ctx) {
 		return job.StateNotChangedErr{Dir: document.DirHandleFromPath(path)}
 	}
 
 	var files ast.StacksFiles
 	// var diags ast.StacksDiags
 	// Only parse the file that's being changed/opened, unless this is 1st-time parsing
-	if stack.StacksDiagnosticsState[ast.HCLParsingSource] == op.OpStateLoaded &&
+	if stack.StacksDiagnosticsState[globalAst.HCLParsingSource] == op.OpStateLoaded &&
 		rpcContext.IsDidChangeRequest() &&
 		rpcContext.LanguageID == ilsp.Stacks.String() {
 		// the file has already been parsed, so only examine this file and not the whole module
@@ -101,7 +102,7 @@ func ParseStack(
 		// diags = existingDiags
 	} else {
 		// this is the first time file is opened so parse the whole module
-		err = stackStore.SetStacksDiagnosticsState(path, ast.HCLParsingSource, op.OpStateLoading)
+		err = stackStore.SetStacksDiagnosticsState(path, globalAst.HCLParsingSource, op.OpStateLoading)
 		if err != nil {
 			return err
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/terraform-ls/internal/features/stacks/ast"
 	"github.com/hashicorp/terraform-ls/internal/state"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	op "github.com/hashicorp/terraform-ls/internal/terraform/module/operation"
 )
 
@@ -93,7 +94,7 @@ func (s *StacksStore) StacksRecordByPath(path string) (*StacksRecord, error) {
 
 func (s *StacksStore) SetStacksDiagnosticsState(
 	path string,
-	source ast.DiagnosticSource,
+	source globalAst.DiagnosticSource,
 	state op.OpState,
 ) error {
 	txn := s.db.Txn(true)
@@ -136,7 +137,7 @@ func (s *StacksStore) UpdateParsedStacksFiles(path string, pFiles ast.StacksFile
 	return nil
 }
 
-func (s *StacksStore) UpdateStacksDiagnostics(path string, source ast.DiagnosticSource, diags ast.StacksDiags) error {
+func (s *StacksStore) UpdateStacksDiagnostics(path string, source globalAst.DiagnosticSource, diags ast.StacksDiags) error {
 	txn := s.db.Txn(true)
 	txn.Defer(func() {
 		s.SetStacksDiagnosticsState(path, source, op.OpStateLoaded)

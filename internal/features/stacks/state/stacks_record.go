@@ -3,7 +3,10 @@
 
 package state
 
-import "github.com/hashicorp/terraform-ls/internal/features/stacks/ast"
+import (
+	"github.com/hashicorp/terraform-ls/internal/features/stacks/ast"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
+)
 
 type StacksRecord struct {
 	path string
@@ -12,7 +15,7 @@ type StacksRecord struct {
 	StacksParsingErr  error
 
 	StacksDiagnostics      ast.SourceStacksDiags
-	StacksDiagnosticsState ast.DiagnosticSourceState
+	StacksDiagnosticsState globalAst.DiagnosticSourceState
 }
 
 func (s *StacksRecord) Path() string {

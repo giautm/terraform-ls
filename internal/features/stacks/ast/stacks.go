@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	globalAst "github.com/hashicorp/terraform-ls/internal/terraform/ast"
 )
 
 type StacksFilename string
@@ -20,7 +21,7 @@ func (mf StacksFilename) IsJSON() bool {
 }
 
 func (mf StacksFilename) IsIgnored() bool {
-	return IsIgnoredFile(string(mf))
+	return globalAst.IsIgnoredFile(string(mf))
 }
 
 func IsStacksFilename(name string) bool {
@@ -98,7 +99,7 @@ func (md StacksDiags) Count() int {
 	return count
 }
 
-type SourceStacksDiags map[DiagnosticSource]StacksDiags
+type SourceStacksDiags map[globalAst.DiagnosticSource]StacksDiags
 
 func (smd SourceStacksDiags) Count() int {
 	count := 0
