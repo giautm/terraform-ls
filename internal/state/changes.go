@@ -59,8 +59,20 @@ func (s *ChangeStore) QueueChange(dir document.DirHandle, changes Changes) error
 		batch := obj.(ChangeBatch)
 		cb = batch.Copy()
 
-		// TODO merge?
-		cb.Changes = changes
+		// Update the existing change batch with the incoming changes.
+		// The incoming change should never change a flag that is true back to false
+		cb.Changes = Changes{
+			IsRemoval:            cb.Changes.IsRemoval || changes.IsRemoval,
+			CoreRequirements:     cb.Changes.CoreRequirements || changes.CoreRequirements,
+			Backend:              cb.Changes.Backend || changes.Backend,
+			Cloud:                cb.Changes.Cloud || changes.Cloud,
+			ProviderRequirements: cb.Changes.ProviderRequirements || changes.ProviderRequirements,
+			TerraformVersion:     cb.Changes.TerraformVersion || changes.TerraformVersion,
+			InstalledProviders:   cb.Changes.InstalledProviders || changes.InstalledProviders,
+			Diagnostics:          cb.Changes.Diagnostics || changes.Diagnostics,
+			ReferenceOrigins:     cb.Changes.ReferenceOrigins || changes.ReferenceOrigins,
+			ReferenceTargets:     cb.Changes.ReferenceTargets || changes.ReferenceTargets,
+		}
 	} else {
 		// create new change batch
 		isDirOpen, err := DirHasOpenDocuments(txn, dir)
@@ -160,7 +172,7 @@ func (s *ChangeStore) AwaitNextChangeBatch(ctx context.Context) (ChangeBatch, er
 	// wait for another job to get processed
 	case <-wCh:
 	// or for the remaining time to pass
-	case <-time.After(timeout.Sub(time.Now())):
+	case <-time.After(time.Until(timeout)):
 	// or context cancellation
 	case <-ctx.Done():
 		return ChangeBatch{}, ctx.Err()

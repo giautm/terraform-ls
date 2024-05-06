@@ -107,7 +107,14 @@ func (d Diagnostics) Append(src ast.DiagnosticSource, diagsMap map[string]hcl.Di
 }
 
 func (d Diagnostics) Extend(diags Diagnostics) Diagnostics {
-	// TODO! implement
+	for uri, uriDiags := range diags {
+		if _, ok := d[uri]; !ok {
+			d[uri] = make(map[ast.DiagnosticSource]hcl.Diagnostics, 0)
+		}
+		for src, diag := range uriDiags {
+			d[uri][src] = append(d[uri][src], diag...)
+		}
+	}
 
 	return d
 }
