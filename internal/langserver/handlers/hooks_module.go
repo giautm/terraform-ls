@@ -33,9 +33,13 @@ func sendModuleTelemetry(features *Features, telemetrySender telemetry.Sender) n
 			return err
 		}
 
+		// Query and merge telemetry from all modules
+		// We assume there are no conflicting property keys
 		properties := features.Modules.Telemetry(path)
-		// TODO! root modules
-		// features.RootModules.Telemetry(path)
+		rootTelemetry := features.RootModules.Telemetry(path)
+		for property, value := range rootTelemetry {
+			properties[property] = value
+		}
 
 		telemetrySender.SendEvent(ctx, "moduleData", properties)
 
