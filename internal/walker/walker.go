@@ -14,7 +14,6 @@ import (
 
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
-	"github.com/hashicorp/terraform-ls/internal/terraform/ast"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -55,10 +54,6 @@ type Walker struct {
 type PathStore interface {
 	AwaitNextDir(ctx context.Context) (context.Context, document.DirHandle, error)
 	RemoveDir(dir document.DirHandle) error
-}
-
-type RecordStores interface {
-	AddIfNotExists(dir string, recordType ast.RecordType) error
 }
 
 const tracerName = "github.com/hashicorp/terraform-ls/internal/walker"

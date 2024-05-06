@@ -5,44 +5,6 @@ package ast
 
 import "strings"
 
-// TODO move this to a more appropriate place
-type RecordType int64
-
-const (
-	RecordTypeModule RecordType = iota
-	RecordTypeVariable
-	RecordTypeRoot
-	RecordTypeStacks
-)
-
-func (rt RecordType) String() string {
-	switch rt {
-	case RecordTypeStacks:
-		return "stacks"
-	case RecordTypeModule:
-		return "module"
-	case RecordTypeVariable:
-		return "variable"
-	case RecordTypeRoot:
-		return "root"
-	default:
-		return "unknown"
-	}
-}
-
-func RecordTypeFromLanguageID(languageID string) RecordType {
-	switch languageID {
-	case "terraform":
-		return RecordTypeModule
-	case "terraform-vars":
-		return RecordTypeVariable
-	case "terraform-stacks":
-		return RecordTypeStacks
-	default:
-		return -1 // TODO!
-	}
-}
-
 // isIgnoredFile returns true if the given filename (which must not have a
 // directory path ahead of it) should be ignored as e.g. an editor swap file.
 // See https://github.com/hashicorp/terraform/blob/d35bc05/internal/configs/parser_config_dir.go#L107
