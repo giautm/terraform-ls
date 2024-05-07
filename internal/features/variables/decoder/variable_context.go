@@ -6,27 +6,34 @@ package decoder
 import (
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/reference"
+	"github.com/hashicorp/hcl-lang/schema"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/ast"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/state"
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
-func variablePathContext(mod *state.VariableRecord, moduleReader ModuleReader) (*decoder.PathContext, error) {
+func variablePathContext(mod *state.VariableRecord, moduleReader ModuleReader, useAnySchema bool) (*decoder.PathContext, error) {
 	variables, _ := moduleReader.ModuleInputs(mod.Path())
-	schema, err := tfschema.SchemaForVariables(variables, mod.Path())
-	if err != nil {
-		return nil, err
+	bodySchema := &schema.BodySchema{}
+	if useAnySchema {
+		bodySchema = tfschema.AnySchemaForVariableCollection(mod.Path())
+	} else {
+		var err error
+		bodySchema, err = tfschema.SchemaForVariables(variables, mod.Path())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	pathCtx := &decoder.PathContext{
-		Schema:           schema,
+		Schema:           bodySchema,
 		ReferenceOrigins: make(reference.Origins, 0),
 		ReferenceTargets: make(reference.Targets, 0),
 		Files:            make(map[string]*hcl.File),
 	}
 
-	if len(schema.Attributes) > 0 {
+	if len(bodySchema.Attributes) > 0 {
 		// Only validate if this is actually a module
 		// as we may come across standalone tfvars files
 		// for which we have no context.

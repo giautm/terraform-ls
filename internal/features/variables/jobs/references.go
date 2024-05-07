@@ -45,6 +45,7 @@ func DecodeVarsReferences(ctx context.Context, varStore *state.VariableStore, mo
 	d := decoder.NewDecoder(&fdecoder.PathReader{
 		StateReader:  varStore,
 		ModuleReader: moduleFeature,
+		UseAnySchema: true,
 	})
 	d.SetContext(idecoder.DecoderContext(ctx))
 

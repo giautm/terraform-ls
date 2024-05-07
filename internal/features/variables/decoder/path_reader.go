@@ -25,6 +25,7 @@ type ModuleReader interface {
 type PathReader struct {
 	StateReader  StateReader
 	ModuleReader ModuleReader
+	UseAnySchema bool
 }
 
 var _ decoder.PathReader = &PathReader{}
@@ -53,5 +54,5 @@ func (pr *PathReader) PathContext(path lang.Path) (*decoder.PathContext, error) 
 	if err != nil {
 		return nil, err
 	}
-	return variablePathContext(mod, pr.ModuleReader)
+	return variablePathContext(mod, pr.ModuleReader, pr.UseAnySchema)
 }
