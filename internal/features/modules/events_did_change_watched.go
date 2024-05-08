@@ -56,17 +56,15 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 	rawURI := string(fileURI)
 
 	if modUri, ok := datadir.ModuleUriFromDataDir(rawURI); ok {
-		return handleModuleUrifromDataDir(modUri, changeType, f) // TODO: continue
+		return f.handleModuleUrifromDataDir(modUri, changeType) // TODO: continue
 	}
 
-	// TODO: figure out whether indexer methods stay
-	// if modUri, ok := datadir.ModuleUriFromPluginLockFile(rawURI); ok {
 	if _, ok := datadir.ModuleUriFromPluginLockFile(rawURI); ok {
-		return handleModuleUriFromPluginLockFile(changeType, ids) // TODO: continue
+		return f.handleModuleUriFromPluginLockFile(changeType) // TODO: continue
 	}
 
 	if modUri, ok := datadir.ModuleUriFromModuleLockFile(rawURI); ok {
-		return handleModuleUriFromModuleLockFile(modUri, changeType, f, ids) // TODO: continue
+		return f.handleModuleUriFromModuleLockFile(modUri, changeType) // TODO: continue
 	}
 
 	rawPath, err := uri.PathFromURI(rawURI)
@@ -224,7 +222,9 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 	return ids, nil
 }
 
-func handleModuleUriFromModuleLockFile(modUri string, changeType protocol.FileChangeType, f *ModulesFeature, ids job.IDs) (job.IDs, error) {
+func (f *ModulesFeature) handleModuleUriFromModuleLockFile(modUri string, changeType protocol.FileChangeType) (job.IDs, error) {
+	var ids job.IDs
+
 	modHandle := document.DirHandleFromURI(modUri)
 	if changeType == protocol.Deleted {
 		// This is unlikely to happen unless the user manually removed files
@@ -255,7 +255,8 @@ func handleModuleUriFromModuleLockFile(modUri string, changeType protocol.FileCh
 	return ids, nil // TODO: continue
 }
 
-func handleModuleUriFromPluginLockFile(changeType protocol.FileChangeType, ids job.IDs) (job.IDs, error) {
+func  (f *ModulesFeature) handleModuleUriFromPluginLockFile(changeType protocol.FileChangeType) (job.IDs, error) {
+	var ids job.IDs
 	if changeType == protocol.Deleted {
 		// This is unlikely to happen unless the user manually removed files
 		// See https://github.com/hashicorp/terraform/issues/30005
@@ -282,7 +283,7 @@ func handleModuleUriFromPluginLockFile(changeType protocol.FileChangeType, ids j
 	return ids, nil // TODO: continue
 }
 
-func handleModuleUrifromDataDir(modUri string, changeType protocol.FileChangeType, f *ModulesFeature) (job.IDs, error) {
+func (f *ModulesFeature) handleModuleUrifromDataDir(modUri string, changeType protocol.FileChangeType) (job.IDs, error) {
 	// This is necessary because clients may not send delete notifications
 	// for individual nested files when the parent directory is deleted.
 	// VS Code / vscode-languageclient behaves this way.
