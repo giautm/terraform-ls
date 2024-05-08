@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
+	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/state"
 	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
 	tfmod "github.com/hashicorp/terraform-schema/module"
@@ -20,6 +21,7 @@ type StateReader interface {
 
 type ModuleReader interface {
 	ModuleInputs(modPath string) (map[string]tfmod.Variable, error)
+	MetadataReady(dir document.DirHandle) (<-chan struct{}, bool, error)
 }
 
 type PathReader struct {

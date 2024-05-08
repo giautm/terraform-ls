@@ -6,6 +6,7 @@ package variables
 import (
 	"context"
 
+	lsctx "github.com/hashicorp/terraform-ls/internal/context"
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/ast"
 	"github.com/hashicorp/terraform-ls/internal/features/variables/jobs"
@@ -73,6 +74,38 @@ func (f *VariablesFeature) didOpen(ctx context.Context, dir document.DirHandle, 
 		return ids, err
 	}
 	ids = append(ids, varsRefsId)
+
+	validationOptions, err := lsctx.ValidationOptions(ctx)
+	if err != nil {
+		return ids, err
+	}
+	if validationOptions.EnableEnhancedValidation {
+		wCh, moduleReady, err := f.moduleFeature.MetadataReady(dir)
+		if err != nil {
+			return ids, err
+		}
+		if !moduleReady {
+			select {
+			// Wait for module to be ready
+			case <-wCh:
+			case <-ctx.Done(): // TODO can we cancel via context here?
+				return ids, ctx.Err()
+			}
+		}
+
+		_, err = f.jobStore.EnqueueJob(ctx, job.Job{
+			Dir: dir,
+			Func: func(ctx context.Context) error {
+				return jobs.SchemaVariablesValidation(ctx, f.store, f.moduleFeature, path)
+			},
+			Type:        op.OpTypeSchemaVarsValidation.String(),
+			DependsOn:   job.IDs{parseVarsId},
+			IgnoreState: true,
+		})
+		if err != nil {
+			return ids, err
+		}
+	}
 
 	return ids, nil
 }

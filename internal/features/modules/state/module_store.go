@@ -727,3 +727,17 @@ func (s *ModuleStore) queueModuleChange(oldMod, newMod *ModuleRecord) error {
 
 	return s.changeStore.QueueChange(modHandle, changes)
 }
+
+func (f *ModuleStore) MetadataReady(dir document.DirHandle) (<-chan struct{}, bool, error) {
+	rTxn := f.db.Txn(false)
+
+	wCh, recordObj, err := rTxn.FirstWatch(f.tableName, "module_state", dir.Path(), op.OpStateLoaded)
+	if err != nil {
+		return nil, false, err
+	}
+	if recordObj != nil {
+		return wCh, true, nil
+	}
+
+	return wCh, false, nil
+}

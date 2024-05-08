@@ -26,6 +26,15 @@ var dbSchema = &memdb.DBSchema{
 					Unique:  true,
 					Indexer: &memdb.StringFieldIndex{Field: "path"},
 				},
+				"module_state": {
+					Name: "module_state",
+					Indexer: &memdb.CompoundIndex{
+						Indexes: []memdb.Indexer{
+							&memdb.StringFieldIndex{Field: "path"},
+							&memdb.UintFieldIndex{Field: "MetaState"},
+						},
+					},
+				},
 			},
 		},
 		moduleIdsTableName: {

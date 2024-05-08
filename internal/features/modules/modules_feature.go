@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/terraform-ls/internal/algolia"
+	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	fdecoder "github.com/hashicorp/terraform-ls/internal/features/modules/decoder"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/hooks"
@@ -265,4 +266,8 @@ func (f *ModulesFeature) Telemetry(path string) map[string]interface{} {
 	properties["moduleId"] = modId
 
 	return properties
+}
+
+func (f *ModulesFeature) MetadataReady(dir document.DirHandle) (<-chan struct{}, bool, error) {
+	return f.store.MetadataReady(dir)
 }
