@@ -150,3 +150,12 @@ func (f *RootModulesFeature) Telemetry(path string) map[string]interface{} {
 
 	return properties
 }
+
+func (f *RootModulesFeature) RootRecordByPath(modPath string) (*state.RootRecord, error) {
+	record, err := f.store.RootRecordByPath(modPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
+}

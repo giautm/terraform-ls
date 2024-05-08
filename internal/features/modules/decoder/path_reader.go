@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/hcl-lang/decoder"
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/state"
+	rstate "github.com/hashicorp/terraform-ls/internal/features/rootmodules/state"
 	ilsp "github.com/hashicorp/terraform-ls/internal/lsp"
 	"github.com/hashicorp/terraform-ls/internal/terraform/datadir"
 	tfaddr "github.com/hashicorp/terraform-registry-address"
@@ -32,6 +33,7 @@ type RootReader interface {
 	InstalledModuleCalls(modPath string) (map[string]tfmod.InstalledModuleCall, error)
 	TerraformVersion(modPath string) *version.Version
 	UpdateModManifest(path string, manifest *datadir.ModuleManifest, mErr error) error
+	RootRecordByPath(modPath string) (*rstate.RootRecord, error)
 }
 
 type CombinedReader struct {

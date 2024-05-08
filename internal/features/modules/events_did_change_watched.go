@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/hashicorp/terraform-ls/internal/document"
@@ -15,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/job"
 	"github.com/hashicorp/terraform-ls/internal/protocol"
 	"github.com/hashicorp/terraform-ls/internal/terraform/datadir"
+	"github.com/hashicorp/terraform-ls/internal/uri"
 )
 
 /*
@@ -67,11 +69,11 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 		return handleModuleUriFromModuleLockFile(modUri, changeType, f, ids) // TODO: continue
 	}
 
-	// rawPath, err := uri.PathFromURI(rawURI)
-	// if err != nil {
-	// 	f.logger.Printf("error parsing %q: %s", rawURI, err)
-	// 	return ids, err // continue
-	// }
+	rawPath, err := uri.PathFromURI(rawURI)
+	if err != nil {
+		f.logger.Printf("error parsing %q: %s", rawURI, err)
+		return ids, err // continue
+	}
 
 	switch changeType {
 	case protocol.Deleted:
@@ -81,48 +83,50 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 
 		// TODO: figure out whether indexer methods stay
 		// _, err = svc.stateStore.Roots.RootRecordByPath(rawPath)
-		// if err == nil {
-		// 	svc.removeIndexedModule(ctx, rawURI)
-		// 	return ids, err // continue
-		// }
+		_, err = f.rootFeature.RootRecordByPath(rawPath)
+		if err == nil {
+			// TODO svc.removeIndexedModule(ctx, rawURI)
+			return ids, err // continue
+		}
 
 		// 2nd we try again assuming it is a file
-		// parentDir := filepath.Dir(rawPath)
+		parentDir := filepath.Dir(rawPath)
 		// TODO! check other stores as well
 
 		// TODO: figure out whether indexer methods stay
 		// _, err = svc.stateStore.Roots.RootRecordByPath(parentDir)
-		// if err != nil {
-		// 	f.logger.Printf("error finding module (%q deleted): %s", parentDir, err)
-		// 	return ids, err // continue
-		// }
+		_, err = f.rootFeature.RootRecordByPath(parentDir)
+		if err != nil {
+			f.logger.Printf("error finding module (%q deleted): %s", parentDir, err)
+			return ids, err // continue
+		}
 
 		// TODO: figure out whether indexer methods stay
 		// and check the parent directory still exists
-		// fi, err := os.Stat(parentDir)
-		// if err != nil {
-		// 	if os.IsNotExist(err) {
-		// 		// if not, we remove the indexed module
-		// 		svc.removeIndexedModule(ctx, rawURI)
-		// 		return ids, err // continue
-		// 	}
-		// 	f.logger.Printf("error checking existence (%q deleted): %s", parentDir, err)
-		// 	return ids, err // continue
-		// }
-		// if !fi.IsDir() {
-		// 	f.logger.Printf("error: %q (deleted) is not a directory", parentDir)
-		// 	return ids, err // continue
-		// }
+		fi, err := os.Stat(parentDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				// if not, we remove the indexed module
+				// TODO svc.removeIndexedModule(ctx, rawURI)
+				return ids, err // continue
+			}
+			f.logger.Printf("error checking existence (%q deleted): %s", parentDir, err)
+			return ids, err // continue
+		}
+		if !fi.IsDir() {
+			f.logger.Printf("error: %q (deleted) is not a directory", parentDir)
+			return ids, err // continue
+		}
 
 		// TODO: figure out whether indexer methods stay
 		// if the parent directory exists, we just need to
 		// reparse the module after a file was deleted from it
 		// dirHandle := document.DirHandleFromPath(parentDir)
 		// jobIds, err := svc.indexer.DocumentChanged(ctx, dirHandle)
-		// if err != nil {
-		// 	f.logger.Printf("error parsing module (%q deleted): %s", rawURI, err)
-		// 	return ids, err // continue
-		// }
+		if err != nil {
+			f.logger.Printf("error parsing module (%q deleted): %s", rawURI, err)
+			return ids, err // continue
+		}
 
 		// ids = append(ids, jobIds...)
 	case protocol.Changed:
@@ -130,32 +134,38 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 		// as we already did so as part of textDocument/didChange
 		// which clients should always send for *open* documents
 		// even if they change outside of the IDE.
-		// docHandle := document.HandleFromURI(rawURI)
+		docHandle := document.HandleFromURI(rawURI)
 		// isOpen, err := svc.stateStore.DocumentStore.IsDocumentOpen(docHandle)
-		// if err != nil {
-		// 	f.logger.Printf("error when checking open document (%q changed): %s", rawURI, err)
-		// }
-		// if isOpen {
-		// 	f.logger.Printf("document is open - ignoring event for %q", rawURI)
-		// 	return ids, err // continue
-		// }
+		isOpen, err := f.documentStore.IsDocumentOpen(docHandle)
+		if err != nil {
+			f.logger.Printf("error when checking open document (%q changed): %s", rawURI, err)
+		}
+		if isOpen {
+			f.logger.Printf("document is open - ignoring event for %q", rawURI)
+			return ids, err // continue
+		}
 
-		// ph, err := modHandleFromRawOsPath(ctx, rawPath)
-		// if err != nil {
-		// 	if err == ErrorSkip {
-		// 		return ids, err // continue
-		// 	}
-		// 	f.logger.Printf("error (%q changed): %s", rawURI, err)
-		// 	return ids, err // continue
-		// }
+		ph, err := modHandleFromRawOsPath(ctx, rawPath)
+		if err != nil {
+			// if err == ErrorSkip {
+			// 	return ids, err // continue
+			// }
+			// f.logger.Printf("error (%q changed): %s", rawURI, err)
+			// return ids, err // continue
+			if err != ErrorSkip {
+				f.logger.Printf("error (%q created): %s", rawURI, err)
+				return ids, err // continue
+			}
+		}
 
 		// // TODO! check other stores as well
 
 		// _, err = svc.stateStore.Roots.RootRecordByPath(ph.DirHandle.Path())
-		// if err != nil {
-		// 	f.logger.Printf("error finding module (%q changed): %s", rawURI, err)
-		// 	return ids, err // continue
-		// }
+		_, err = f.rootFeature.RootRecordByPath(ph.DirHandle.Path())
+		if err != nil {
+			f.logger.Printf("error finding module (%q changed): %s", rawURI, err)
+			return ids, err // continue
+		}
 
 		// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
 		// if err != nil {
@@ -170,38 +180,38 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 			if open, we ignore event and stop processing the file
 			if not open, we queue jobs to start indexing the module the file is in
 		*/
-		// ph, err := modHandleFromRawOsPath(ctx, rawPath)
-		// if err != nil {
-		// 	// if err == ErrorSkip {
-		// 	// 	continue
-		// 	// }
-		// 	// f.logger.Printf("error (%q created): %s", rawURI, err)
-		// 	// return ids, err // continue
-		// 	if err != ErrorSkip {
-		// 		f.logger.Printf("error (%q created): %s", rawURI, err)
-		// 		return ids, err // continue
-		// 	}
-		// }
+		ph, err := modHandleFromRawOsPath(ctx, rawPath)
+		if err != nil {
+			// if err == ErrorSkip {
+			// 	continue
+			// }
+			// f.logger.Printf("error (%q created): %s", rawURI, err)
+			// return ids, err // continue
+			if err != ErrorSkip {
+				f.logger.Printf("error (%q created): %s", rawURI, err)
+				return ids, err // continue
+			}
+		}
 
-		// if ph.IsDir {
-		// 	err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, ph.DirHandle)
-		// 	if err != nil {
-		// 		jrpc2.ServerFromContext(ctx).Notify(ctx, "window/showMessage", &protocol.ShowMessageParams{
-		// 			Type: protocol.Warning,
-		// 			Message: fmt.Sprintf("Ignoring new folder %s: %s."+
-		// 				" This is most likely bug, please report it.", rawURI, err),
-		// 		})
-		// 		return ids, err // continue
-		// 	}
-		// } else {
-		// 	jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
-		// 	if err != nil {
-		// 		f.logger.Printf("error parsing module (%q created): %s", rawURI, err)
-		// 		return ids, err // continue
-		// 	}
+		if ph.IsDir {
+			// err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, ph.DirHandle)
+			// if err != nil {
+			// 	jrpc2.ServerFromContext(ctx).Notify(ctx, "window/showMessage", &protocol.ShowMessageParams{
+			// 		Type: protocol.Warning,
+			// 		Message: fmt.Sprintf("Ignoring new folder %s: %s."+
+			// 			" This is most likely bug, please report it.", rawURI, err),
+			// 	})
+			// 	return ids, err // continue
+			// }
+		} else {
+			// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
+			// if err != nil {
+			// 	f.logger.Printf("error parsing module (%q created): %s", rawURI, err)
+			// 	return ids, err // continue
+			// }
 
-		// 	ids = append(ids, jobIds...)
-		// }
+			// 	ids = append(ids, jobIds...)
+		}
 
 	}
 
