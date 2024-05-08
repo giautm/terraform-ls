@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-multierror"
+	lsctx "github.com/hashicorp/terraform-ls/internal/context"
 	"github.com/hashicorp/terraform-ls/internal/document"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/ast"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/jobs"
@@ -144,6 +145,38 @@ func (f *ModulesFeature) didOpen(ctx context.Context, dir document.DirHandle, la
 		return ids, err
 	}
 	ids = append(ids, metaId)
+
+	validationOptions, err := lsctx.ValidationOptions(ctx)
+	if err != nil {
+		return ids, err
+	}
+	if validationOptions.EnableEnhancedValidation {
+		_, err = f.jobStore.EnqueueJob(ctx, job.Job{
+			Dir: dir,
+			Func: func(ctx context.Context) error {
+				return jobs.SchemaModuleValidation(ctx, f.store, f.rootFeature, dir.Path())
+			},
+			Type:        op.OpTypeSchemaModuleValidation.String(),
+			DependsOn:   ids,
+			IgnoreState: true,
+		})
+		if err != nil {
+			return ids, err
+		}
+
+		_, err = f.jobStore.EnqueueJob(ctx, job.Job{
+			Dir: dir,
+			Func: func(ctx context.Context) error {
+				return jobs.ReferenceValidation(ctx, f.store, f.rootFeature, dir.Path())
+			},
+			Type:        op.OpTypeReferenceValidation.String(),
+			DependsOn:   ids,
+			IgnoreState: true,
+		})
+		if err != nil {
+			return ids, err
+		}
+	}
 
 	// This job may make an HTTP request, and we schedule it in
 	// the low-priority queue, so we don't want to wait for it.
