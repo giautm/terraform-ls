@@ -78,8 +78,8 @@ func (f *ModulesFeature) Start(ctx context.Context) {
 
 	didOpen := f.eventbus.OnDidOpen("feature.modules")
 	didChange := f.eventbus.OnDidChange("feature.modules")
-	didChangeWatched := f.eventbus.OnDidChangeWatched("feature.modules")
 	discover := f.eventbus.OnDiscover("feature.modules")
+	documentChanged := f.eventbus.OnDocumentChanged("feature.modules")
 	go func() {
 		for {
 			select {
@@ -90,13 +90,12 @@ func (f *ModulesFeature) Start(ctx context.Context) {
 				// TODO move into own handler
 				// TODO collect errors
 				f.didOpen(didChange.Context, didChange.Dir, didChange.LanguageID)
-			case didChangeWatched := <-didChangeWatched:
-				// TODO move into own handler
-				// TODO collect errors
-				f.didChangeWatched(didChangeWatched.Context, didChangeWatched.FileURI, didChangeWatched.ChangeType)
 			case discover := <-discover:
 				// TODO collect errors
 				f.discover(discover.Path, discover.Files)
+			case documentChanged := <-documentChanged:
+				// TODO collect errors
+				f.documentChanged(documentChanged.Context, documentChanged.Path)
 
 			case <-ctx.Done():
 				return

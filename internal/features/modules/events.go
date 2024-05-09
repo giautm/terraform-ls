@@ -197,6 +197,36 @@ func (f *ModulesFeature) didOpen(ctx context.Context, dir document.DirHandle, la
 	return ids, nil
 }
 
+func (f *ModulesFeature) documentChanged(ctx context.Context, path string) (job.IDs, error) {
+	ids := make(job.IDs, 0)
+
+	modHandle := document.DirHandleFromPath(path)
+
+	// ParseModuleConfiguration
+	parseId, err := f.jobStore.EnqueueJob(ctx, job.Job{
+		Dir: modHandle,
+		Func: func(ctx context.Context) error {
+			return jobs.ParseModuleConfiguration(ctx, f.fs, f.store, modHandle.Path())
+		},
+		Type:        op.OpTypeParseModuleConfiguration.String(),
+		IgnoreState: true,
+	})
+	if err != nil {
+		return ids, err
+	}
+	ids = append(ids, parseId)
+
+	modIds, err := f.decodeModule(ctx, modHandle, job.IDs{parseId}, true)
+	if err != nil {
+		return ids, err
+	}
+	ids = append(ids, modIds...)
+
+	// ParseVariables
+
+	return ids, err // continue
+}
+
 func (f *ModulesFeature) decodeDeclaredModuleCalls(ctx context.Context, dir document.DirHandle, ignoreState bool) (job.IDs, error) {
 	jobIds := make(job.IDs, 0)
 
@@ -347,4 +377,136 @@ func (f *ModulesFeature) collectReferences(ctx context.Context, dir document.Dir
 	}
 
 	return ids, errs.ErrorOrNil()
+}
+
+func (f *ModulesFeature) decodeModule(ctx context.Context, modHandle document.DirHandle, dependsOn job.IDs, ignoreState bool) (job.IDs, error) {
+	ids := make(job.IDs, 0)
+
+	// Changes to a setting currently requires a LS restart, so the LS
+	// setting context cannot change during the execution of a job. That's
+	// why we can extract it here and use it in Defer.
+	// See https://github.com/hashicorp/terraform-ls/issues/1008
+	validationOptions, err := lsctx.ValidationOptions(ctx)
+	if err != nil {
+		return ids, err
+	}
+
+	metaId, err := f.jobStore.EnqueueJob(ctx, job.Job{
+		Dir: modHandle,
+		Func: func(ctx context.Context) error {
+			return jobs.LoadModuleMetadata(ctx, f.store, modHandle.Path())
+		},
+		Type:        op.OpTypeLoadModuleMetadata.String(),
+		DependsOn:   dependsOn,
+		IgnoreState: ignoreState,
+		Defer: func(ctx context.Context, jobErr error) (job.IDs, error) {
+			ids := make(job.IDs, 0)
+			if jobErr != nil {
+				f.logger.Printf("loading module metadata returned error: %s", jobErr)
+			}
+
+			modCalls, mcErr := f.decodeDeclaredModuleCalls(ctx, modHandle, ignoreState)
+			if mcErr != nil {
+				f.logger.Printf("decoding declared module calls for %q failed: %s", modHandle.URI, mcErr)
+				// We log the error but still continue scheduling other jobs
+				// which are still valuable for the rest of the configuration
+				// even if they may not have the data for module calls.
+			}
+
+			eSchemaId, err := f.jobStore.EnqueueJob(ctx, job.Job{
+				Dir: modHandle,
+				Func: func(ctx context.Context) error {
+					return jobs.PreloadEmbeddedSchema(ctx, f.logger, schemas.FS, f.store, f.providerSchemasStore, modHandle.Path())
+				},
+				Type:        op.OpTypePreloadEmbeddedSchema.String(),
+				IgnoreState: ignoreState,
+			})
+			if err != nil {
+				return ids, err
+			}
+			ids = append(ids, eSchemaId)
+
+			if validationOptions.EnableEnhancedValidation {
+				_, err = f.jobStore.EnqueueJob(ctx, job.Job{
+					Dir: modHandle,
+					Func: func(ctx context.Context) error {
+						return jobs.SchemaModuleValidation(ctx, f.store, f.rootFeature, modHandle.Path())
+					},
+					Type:        op.OpTypeSchemaModuleValidation.String(),
+					DependsOn:   append(modCalls, eSchemaId),
+					IgnoreState: ignoreState,
+				})
+				if err != nil {
+					return ids, err
+				}
+			}
+
+			refTargetsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
+				Dir: modHandle,
+				Func: func(ctx context.Context) error {
+					return jobs.DecodeReferenceTargets(ctx, f.store, f.rootFeature, modHandle.Path())
+				},
+				Type:        op.OpTypeDecodeReferenceTargets.String(),
+				DependsOn:   job.IDs{eSchemaId},
+				IgnoreState: ignoreState,
+			})
+			if err != nil {
+				return ids, err
+			}
+			ids = append(ids, refTargetsId)
+
+			refOriginsId, err := f.jobStore.EnqueueJob(ctx, job.Job{
+				Dir: modHandle,
+				Func: func(ctx context.Context) error {
+					return jobs.DecodeReferenceOrigins(ctx, f.store, f.rootFeature, modHandle.Path())
+				},
+				Type:        op.OpTypeDecodeReferenceOrigins.String(),
+				DependsOn:   append(modCalls, eSchemaId),
+				IgnoreState: ignoreState,
+			})
+			if err != nil {
+				return ids, err
+			}
+			ids = append(ids, refOriginsId)
+
+			if validationOptions.EnableEnhancedValidation {
+				_, err = f.jobStore.EnqueueJob(ctx, job.Job{
+					Dir: modHandle,
+					Func: func(ctx context.Context) error {
+						return jobs.ReferenceValidation(ctx, f.store, f.rootFeature, modHandle.Path())
+					},
+					Type:        op.OpTypeReferenceValidation.String(),
+					DependsOn:   job.IDs{refOriginsId, refTargetsId},
+					IgnoreState: ignoreState,
+				})
+				if err != nil {
+					return ids, err
+				}
+			}
+
+			return ids, nil
+		},
+	})
+	if err != nil {
+		return ids, err
+	}
+	ids = append(ids, metaId)
+
+	// This job may make an HTTP request, and we schedule it in
+	// the low-priority queue, so we don't want to wait for it.
+	_, err = f.jobStore.EnqueueJob(ctx, job.Job{
+		Dir: modHandle,
+		Func: func(ctx context.Context) error {
+			return jobs.GetModuleDataFromRegistry(ctx, f.registryClient,
+				f.store, f.registryModuleStore, modHandle.Path())
+		},
+		Priority:  job.LowPriority,
+		DependsOn: job.IDs{metaId},
+		Type:      op.OpTypeGetModuleDataFromRegistry.String(),
+	})
+	if err != nil {
+		return ids, err
+	}
+
+	return ids, nil
 }

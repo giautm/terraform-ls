@@ -1,7 +1,7 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-package modules
+package rootmodules
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/hashicorp/terraform-ls/internal/document"
+	"github.com/hashicorp/terraform-ls/internal/eventbus"
 	"github.com/hashicorp/terraform-ls/internal/features/modules/ast"
 	varast "github.com/hashicorp/terraform-ls/internal/features/variables/ast"
 	"github.com/hashicorp/terraform-ls/internal/job"
@@ -19,52 +20,44 @@ import (
 	"github.com/hashicorp/terraform-ls/internal/uri"
 )
 
-/*
-* watcher.onDidChange(uri => { ... }); // listen to files being changed
-* watcher.onDidCreate(uri => { ... }); // listen to files/folders being created
-* watcher.onDidDelete(uri => { ... }); // listen to files/folders getting deleted
+func (f *RootModulesFeature) didChangeWatched(ctx context.Context, fileURI string, changeType protocol.FileChangeType) (job.IDs, error) {
 
-	if file is ModuleUriFromDataDir
-		if protocol.Deleted
-			UpdateModManifest
-			continue
-		else
-			continue
-	if file is ModuleUriFromPluginLockFile
-		if protocol.Deleted
-			continue
-		else
-			indexModuleIfNotExists
-			PluginLockChanged
-			continue
-	if file is ModuleUriFromModuleLockFile
-		if protocol.Deleted
-			UpdateModManifest
-			continue
-		else
-			indexModuleIfNotExists
-			PluginLockChanged
-			continue
-
-	switch changeType
-	case protocol.Deleted:
-	case protocol.Created:
-	case protocol.Changed:
-*/
-func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, changeType protocol.FileChangeType) (job.IDs, error) {
 	var ids job.IDs
+
 	rawURI := string(fileURI)
 
-	if modUri, ok := datadir.ModuleUriFromDataDir(rawURI); ok {
-		return f.handleModuleUrifromDataDir(modUri, changeType) // TODO: continue
+	/*
+
+		each feature will listen for did_change_watched
+		and process their individual job
+
+
+		check if file is opened, if open returned
+		check if there are open files for the directory of the file that changed
+			if open files, start processing jobs
+			if not open, do not start jobs
+	*/
+	docHandle := document.HandleFromURI(rawURI)
+	isOpen, err := f.documentStore.IsDocumentOpen(docHandle)
+	if err != nil {
+		f.logger.Printf("error when checking open document (%q changed): %s", rawURI, err)
+	}
+	if isOpen {
+		f.logger.Printf("document is open - ignoring event for %q", rawURI)
+		return ids, err // continue
 	}
 
-	if _, ok := datadir.ModuleUriFromPluginLockFile(rawURI); ok {
-		return f.handleModuleUriFromPluginLockFile(changeType) // TODO: continue
+	// data dir is rootmodules feature
+	if modUri, ok := datadir.ModuleUriFromDataDir(rawURI); ok {
+		return f.handleModuleUrifromDataDir(modUri, changeType)
+	}
+
+	if modUri, ok := datadir.ModuleUriFromPluginLockFile(rawURI); ok {
+		return f.handleModuleUriFromPluginLockFile(ctx, changeType, modUri)
 	}
 
 	if modUri, ok := datadir.ModuleUriFromModuleLockFile(rawURI); ok {
-		return f.handleModuleUriFromModuleLockFile(modUri, changeType) // TODO: continue
+		return f.handleModuleUriFromModuleLockFile(modUri, changeType)
 	}
 
 	rawPath, err := uri.PathFromURI(rawURI)
@@ -79,52 +72,49 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 		// 1st we just blindly try to look it up as a directory
 		// TODO! check other stores as well
 
-		// TODO: figure out whether indexer methods stay
-		// _, err = svc.stateStore.Roots.RootRecordByPath(rawPath)
-		_, err = f.rootFeature.RootRecordByPath(rawPath)
-		if err == nil {
-			// TODO svc.removeIndexedModule(ctx, rawURI)
-			return ids, err // continue
-		}
+		// TODO: we don't index anymore...is this needed?
+		// _, err = f.RootRecordByPath(rawPath)
+		// if err == nil {
+		// 	f.removeIndexedModule(ctx, rawURI)
+		// 	return ids, err // continue
+		// }
 
 		// 2nd we try again assuming it is a file
 		parentDir := filepath.Dir(rawPath)
 		// TODO! check other stores as well
 
-		// TODO: figure out whether indexer methods stay
-		// _, err = svc.stateStore.Roots.RootRecordByPath(parentDir)
-		_, err = f.rootFeature.RootRecordByPath(parentDir)
-		if err != nil {
-			f.logger.Printf("error finding module (%q deleted): %s", parentDir, err)
-			return ids, err // continue
-		}
+		// _, err = f.RootRecordByPath(parentDir)
+		// if err != nil {
+		// 	f.logger.Printf("error finding module (%q deleted): %s", parentDir, err)
+		// 	return ids, err // continue
+		// }
 
 		// TODO: figure out whether indexer methods stay
 		// and check the parent directory still exists
-		fi, err := os.Stat(parentDir)
-		if err != nil {
-			if os.IsNotExist(err) {
-				// if not, we remove the indexed module
-				// TODO svc.removeIndexedModule(ctx, rawURI)
-				return ids, err // continue
-			}
-			f.logger.Printf("error checking existence (%q deleted): %s", parentDir, err)
-			return ids, err // continue
-		}
-		if !fi.IsDir() {
-			f.logger.Printf("error: %q (deleted) is not a directory", parentDir)
-			return ids, err // continue
-		}
+		// fi, err := os.Stat(parentDir)
+		// if err != nil {
+		// 	if os.IsNotExist(err) {
+		// 		// TODO: we don't index anymore...is this needed?
+		// 		// if not, we remove the indexed module
+		// 		f.removeIndexedModule(ctx, rawURI)
+
+		// 		return ids, err // continue
+		// 	}
+		// 	f.logger.Printf("error checking existence (%q deleted): %s", parentDir, err)
+		// 	return ids, err // continue
+		// }
+		// if !fi.IsDir() {
+		// 	f.logger.Printf("error: %q (deleted) is not a directory", parentDir)
+		// 	return ids, err // continue
+		// }
 
 		// TODO: figure out whether indexer methods stay
 		// if the parent directory exists, we just need to
 		// reparse the module after a file was deleted from it
-		// dirHandle := document.DirHandleFromPath(parentDir)
-		// jobIds, err := svc.indexer.DocumentChanged(ctx, dirHandle)
-		if err != nil {
-			f.logger.Printf("error parsing module (%q deleted): %s", rawURI, err)
-			return ids, err // continue
-		}
+		f.eventbus.DocumentChanged(eventbus.DocumentChangedEvent{
+			Context: ctx,
+			Path:    parentDir,
+		})
 
 		// ids = append(ids, jobIds...)
 	case protocol.Changed:
@@ -133,7 +123,6 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 		// which clients should always send for *open* documents
 		// even if they change outside of the IDE.
 		docHandle := document.HandleFromURI(rawURI)
-		// isOpen, err := svc.stateStore.DocumentStore.IsDocumentOpen(docHandle)
 		isOpen, err := f.documentStore.IsDocumentOpen(docHandle)
 		if err != nil {
 			f.logger.Printf("error when checking open document (%q changed): %s", rawURI, err)
@@ -145,31 +134,26 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 
 		ph, err := modHandleFromRawOsPath(ctx, rawPath)
 		if err != nil {
-			// if err == ErrorSkip {
-			// 	return ids, err // continue
-			// }
-			// f.logger.Printf("error (%q changed): %s", rawURI, err)
-			// return ids, err // continue
-			if err != ErrorSkip {
-				f.logger.Printf("error (%q created): %s", rawURI, err)
+			if err == ErrorSkip {
 				return ids, err // continue
 			}
+			f.logger.Printf("error (%q changed): %s", rawURI, err)
+			return ids, err // continue
 		}
 
 		// // TODO! check other stores as well
 
-		// _, err = svc.stateStore.Roots.RootRecordByPath(ph.DirHandle.Path())
-		_, err = f.rootFeature.RootRecordByPath(ph.DirHandle.Path())
+		_, err = f.RootRecordByPath(ph.DirHandle.Path())
 		if err != nil {
 			f.logger.Printf("error finding module (%q changed): %s", rawURI, err)
 			return ids, err // continue
 		}
 
-		// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
-		// if err != nil {
-		// 	f.logger.Printf("error parsing module (%q changed): %s", rawURI, err)
-		// 	return ids, err // continue
-		// }
+		parentDir := filepath.Dir(rawPath)
+		f.eventbus.DocumentChanged(eventbus.DocumentChangedEvent{
+			Context: ctx,
+			Path:    parentDir,
+		})
 
 		// ids = append(ids, jobIds...)
 	case protocol.Created:
@@ -180,18 +164,15 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 		*/
 		ph, err := modHandleFromRawOsPath(ctx, rawPath)
 		if err != nil {
-			// if err == ErrorSkip {
-			// 	continue
-			// }
-			// f.logger.Printf("error (%q created): %s", rawURI, err)
-			// return ids, err // continue
-			if err != ErrorSkip {
-				f.logger.Printf("error (%q created): %s", rawURI, err)
+			if err == ErrorSkip {
 				return ids, err // continue
 			}
+			f.logger.Printf("error (%q created): %s", rawURI, err)
+			return ids, err // continue
 		}
 
 		if ph.IsDir {
+			// TODO: what do we do with walker paths?
 			// err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, ph.DirHandle)
 			// if err != nil {
 			// 	jrpc2.ServerFromContext(ctx).Notify(ctx, "window/showMessage", &protocol.ShowMessageParams{
@@ -202,27 +183,20 @@ func (f *ModulesFeature) didChangeWatched(ctx context.Context, fileURI string, c
 			// 	return ids, err // continue
 			// }
 		} else {
-			// jobIds, err := svc.indexer.DocumentChanged(ctx, ph.DirHandle)
-			// if err != nil {
-			// 	f.logger.Printf("error parsing module (%q created): %s", rawURI, err)
-			// 	return ids, err // continue
-			// }
+			parentDir := filepath.Dir(rawPath)
+			f.eventbus.DocumentChanged(eventbus.DocumentChangedEvent{
+				Context: ctx,
+				Path:    parentDir,
+			})
 
-			// 	ids = append(ids, jobIds...)
+			// ids = append(ids, jobIds...)
 		}
-
 	}
 
-	// TODO: figure out whether indexer methods stay
-	// err = svc.stateStore.JobStore.WaitForJobs(ctx, ids...)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	return ids, nil
+	return nil, nil
 }
 
-func (f *ModulesFeature) handleModuleUriFromModuleLockFile(modUri string, changeType protocol.FileChangeType) (job.IDs, error) {
+func (f *RootModulesFeature) handleModuleUriFromModuleLockFile(modUri string, changeType protocol.FileChangeType) (job.IDs, error) {
 	var ids job.IDs
 
 	modHandle := document.DirHandleFromURI(modUri)
@@ -231,59 +205,58 @@ func (f *ModulesFeature) handleModuleUriFromModuleLockFile(modUri string, change
 		// See https://github.com/hashicorp/terraform/issues/30005
 
 		// err := svc.stateStore.Roots.UpdateModManifest(modHandle.Path(), nil, nil)
-		err := f.rootFeature.UpdateModManifest(modHandle.Path(), nil, nil)
+		err := f.UpdateModManifest(modHandle.Path(), nil, nil)
 		if err != nil {
 			f.logger.Printf("failed to remove module manifest for %q: %s", modHandle, err)
 		}
-		return ids, err // TODO: continue
+		return ids, err
 	}
 
 	// TODO: figure out whether indexer methods stay
 	// err := svc.indexModuleIfNotExists(ctx, modHandle)
 	// if err != nil {
 	// 	f.logger.Printf("failed to index module %q: %s", modHandle, err)
-	// 	return ids, err // TODO: continue
+	// 	return ids, err
 	// }
 
 	// jobIds, err := svc.indexer.ModuleManifestChanged(ctx, modHandle)
 	// if err != nil {
 	// 	f.logger.Printf("error refreshing plugins for %q: %s", modHandle, err)
-	// 	return ids, err // TODO: continue
+	// 	return ids, err
 	// }
 	// ids = append(ids, jobIds...)
-	// return ids, err // TODO: continue
-	return ids, nil // TODO: continue
+
+	return ids, nil
 }
 
-func  (f *ModulesFeature) handleModuleUriFromPluginLockFile(changeType protocol.FileChangeType) (job.IDs, error) {
+func (f *RootModulesFeature) handleModuleUriFromPluginLockFile(ctx context.Context, changeType protocol.FileChangeType, modUri string) (job.IDs, error) {
 	var ids job.IDs
 	if changeType == protocol.Deleted {
 		// This is unlikely to happen unless the user manually removed files
 		// See https://github.com/hashicorp/terraform/issues/30005
 		// Cached provider schema could be removed here but it may be useful
 		// in other modules, so we trade some memory for better UX here.
-		return nil, nil // TODO: continue
+		return nil, nil
 	}
 
 	// TODO: figure out whether indexer methods stay
-	// modHandle := document.DirHandleFromURI(modUri)
+	modHandle := document.DirHandleFromURI(modUri)
 	// err := svc.indexModuleIfNotExists(ctx, modHandle)
 	// if err != nil {
 	// 	f.logger.Printf("failed to index module %q: %s", modHandle, err)
-	// 	return nil, nil // TODO: continue
+	// 	return nil, nil
 	// }
 
-	// TODO: figure out whether indexer methods stay
-	// jobIds, err := f.rootFeature.PluginLockChanged(ctx, modHandle)
-	// if err != nil {
-	// 	f.logger.Printf("error refreshing plugins for %q: %s", rawURI, err)
-	// 	return nil, nil // TODO: continue
-	// }
-	// ids = append(ids, jobIds...)
-	return ids, nil // TODO: continue
+	jobIds, err := f.pluginLockChanged(ctx, modHandle)
+	if err != nil {
+		f.logger.Printf("error refreshing plugins for %q: %s", modUri, err)
+		return nil, nil
+	}
+	ids = append(ids, jobIds...)
+	return ids, nil
 }
 
-func (f *ModulesFeature) handleModuleUrifromDataDir(modUri string, changeType protocol.FileChangeType) (job.IDs, error) {
+func (f *RootModulesFeature) handleModuleUrifromDataDir(modUri string, changeType protocol.FileChangeType) (job.IDs, error) {
 	// This is necessary because clients may not send delete notifications
 	// for individual nested files when the parent directory is deleted.
 	// VS Code / vscode-languageclient behaves this way.
@@ -309,7 +282,7 @@ func (f *ModulesFeature) handleModuleUrifromDataDir(modUri string, changeType pr
 		// This is unlikely to happen unless the user manually removed files
 		// See https://github.com/hashicorp/terraform/issues/30005
 		// err := svc.stateStore.Roots.UpdateModManifest(modHandle.Path(), nil, nil)
-		err := f.rootFeature.UpdateModManifest(modHandle.Path(), nil, nil)
+		err := f.UpdateModManifest(modHandle.Path(), nil, nil)
 		if err != nil {
 			f.logger.Printf("failed to remove module manifest for %q: %s", modHandle, err)
 			return nil, err
@@ -317,6 +290,19 @@ func (f *ModulesFeature) handleModuleUrifromDataDir(modUri string, changeType pr
 	}
 
 	return nil, nil
+}
+
+type parsedModuleHandle struct {
+	DirHandle document.DirHandle
+	IsDir     bool
+}
+
+var ErrorSkip = errSkip{}
+
+type errSkip struct{}
+
+func (es errSkip) Error() string {
+	return "skip"
 }
 
 func modHandleFromRawOsPath(ctx context.Context, rawPath string) (*parsedModuleHandle, error) {
@@ -350,25 +336,43 @@ func modHandleFromRawOsPath(ctx context.Context, rawPath string) (*parsedModuleH
 	}, nil
 }
 
-type parsedModuleHandle struct {
-	DirHandle document.DirHandle
-	IsDir     bool
-}
+func (f *RootModulesFeature) removeIndexedModule(ctx context.Context, modURI string) {
+	// TODO: we don't index anymore...is this needed?
 
-var ErrorSkip = errSkip{}
+	// modHandle := document.DirHandleFromURI(modURI)
 
-type errSkip struct{}
-
-func (es errSkip) Error() string {
-	return "skip"
-}
-
-func (f *ModulesFeature) indexModuleIfNotExists(ctx context.Context, modHandle document.DirHandle) error {
-	// TODO! check other stores as well
-
-	// _, err := svc.stateStore.Roots.RootRecordByPath(modHandle.Path())
+	// err := svc.stateStore.WalkerPaths.DequeueDir(modHandle)
 	// if err != nil {
-	// 	if state.IsRecordNotFound(err) {
+	// 	jrpc2.ServerFromContext(ctx).Notify(ctx, "window/showMessage", &lsp.ShowMessageParams{
+	// 		Type: lsp.Warning,
+	// 		Message: fmt.Sprintf("Ignoring removed folder %s: %s."+
+	// 			" This is most likely bug, please report it.", modURI, err),
+	// 	})
+	// 	return
+	// }
+
+	// err = svc.stateStore.JobStore.DequeueJobsForDir(modHandle)
+	// if err != nil {
+	// 	svc.logger.Printf("failed to dequeue jobs for module: %s", err)
+	// 	return
+	// }
+
+	// callers, err := f.store.CallersOfModule(modHandle.Path())
+	// if err != nil {
+	// 	f.logger.Printf("failed to remove module from watcher: %s", err)
+	// 	return
+	// }
+
+	// if len(callers) == 0 {
+	// 	err = f.store.Remove(modHandle.Path())
+	// 	f.logger.Printf("failed to remove records: %s", err)
+	// }
+}
+
+func (f *RootModulesFeature) indexModuleIfNotExists(ctx context.Context, modHandle document.DirHandle) error {
+	// _, err := svc.modStore.ModuleByPath(modHandle.Path())
+	// if err != nil {
+	// 	if state.IsModuleNotFound(err) {
 	// 		err = svc.stateStore.WalkerPaths.EnqueueDir(ctx, modHandle)
 	// 		if err != nil {
 	// 			return fmt.Errorf("failed to walk module %q: %w", modHandle, err)
@@ -381,5 +385,6 @@ func (f *ModulesFeature) indexModuleIfNotExists(ctx context.Context, modHandle d
 	// 		return fmt.Errorf("failed to find module %q: %w", modHandle, err)
 	// 	}
 	// }
+
 	return nil
 }

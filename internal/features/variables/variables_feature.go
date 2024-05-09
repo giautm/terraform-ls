@@ -59,6 +59,7 @@ func (f *VariablesFeature) Start(ctx context.Context) {
 	didOpen := f.eventbus.OnDidOpen("feature.variables")
 	didChange := f.eventbus.OnDidChange("feature.variables")
 	discover := f.eventbus.OnDiscover("feature.variables")
+	documentChanged := f.eventbus.OnDocumentChanged("feature.variables")
 	go func() {
 		for {
 			select {
@@ -70,6 +71,9 @@ func (f *VariablesFeature) Start(ctx context.Context) {
 			case discover := <-discover:
 				// TODO collect errors
 				f.discover(discover.Path, discover.Files)
+			case documentChanged := <-documentChanged:
+				// TODO collect errors
+				f.documentChanged(documentChanged.Context, documentChanged.Path)
 
 			case <-ctx.Done():
 				return

@@ -22,10 +22,11 @@ import (
 )
 
 type RootModulesFeature struct {
-	store    *state.RootStore
-	eventbus *eventbus.EventBus
-	stopFunc context.CancelFunc
-	logger   *log.Logger
+	store         *state.RootStore
+	documentStore *globalState.DocumentStore
+	eventbus      *eventbus.EventBus
+	stopFunc      context.CancelFunc
+	logger        *log.Logger
 
 	tfExecFactory        exec.ExecutorFactory
 	jobStore             *globalState.JobStore
@@ -63,6 +64,7 @@ func (f *RootModulesFeature) Start(ctx context.Context) {
 
 	didOpen := f.eventbus.OnDidOpen("feature.rootmodules")
 	discover := f.eventbus.OnDiscover("feature.rootmodules")
+	didChangeWatched := f.eventbus.OnDidChangeWatched("feature.modules")
 	go func() {
 		for {
 			select {
@@ -71,6 +73,10 @@ func (f *RootModulesFeature) Start(ctx context.Context) {
 			case discover := <-discover:
 				// TODO collect errors
 				f.discover(discover.Path, discover.Files)
+			case didChangeWatched := <-didChangeWatched:
+				// TODO move into own handler
+				// TODO collect errors
+				f.didChangeWatched(didChangeWatched.Context, didChangeWatched.FileURI, didChangeWatched.ChangeType)
 
 			case <-ctx.Done():
 				return

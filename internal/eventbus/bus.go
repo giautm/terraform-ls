@@ -18,6 +18,7 @@ type EventBus struct {
 	didChangeTopic        *Topic[DidChangeEvent]
 	didChangeWatchedTopic *Topic[DidChangeWatchedEvent]
 	discoverTopic         *Topic[DiscoverEvent]
+	documentChangedTopic  *Topic[DocumentChangedEvent]
 }
 
 func NewEventBus() *EventBus {
@@ -29,6 +30,7 @@ func NewEventBus() *EventBus {
 		didChangeTopic:        NewTopic[DidChangeEvent](),
 		didChangeWatchedTopic: NewTopic[DidChangeWatchedEvent](),
 		discoverTopic:         NewTopic[DiscoverEvent](),
+		documentChangedTopic:  NewTopic[DocumentChangedEvent](),
 	}
 }
 
